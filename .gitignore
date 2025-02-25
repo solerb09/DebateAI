@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+
+# Debug logs
+npm-debug.log*
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Frontend build artifacts
+frontend/build/
+
+# Backend build artifacts
+backend/dist/
+
+# Misc
+.DS_Store
+*.log 
