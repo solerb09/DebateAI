@@ -34,11 +34,12 @@ const Header = () => {
               <li className="nav-link"> 
                 <Link to="/login">Login</Link>
               </li>
-            )}
+            )
+            (
             <li className="nav-link">
               <Link to="/signup">Sign Up</Link>
             </li>
-            
+            )}
 
           </ul>
         </nav>
