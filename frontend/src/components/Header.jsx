@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
  * Header component with navigation links
  */
 const Header = () => {
+
   return (
     <header className="header">
       <div className="container">
@@ -22,6 +23,13 @@ const Header = () => {
             <li className="nav-link">
               <Link to="/call">Test Call</Link>
             </li>
+            <li className="nav-link">
+              <Link to="/signup">Sign Up</Link>
+            </li>
+            <li className="nav-link">
+              <Link to="/login">Login</Link>
+            </li>
+            
           </ul>
         </nav>
       </div>
