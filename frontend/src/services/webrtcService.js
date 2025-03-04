@@ -149,9 +149,21 @@ class WebRTCService {
   addLocalStreamToPeerConnection() {
     if (this.localStream && this.peerConnection) {
       console.log('Adding local tracks to peer connection');
+      
+      // Get current senders to check if tracks are already added
+      const currentSenders = this.peerConnection.getSenders();
+      const currentTrackIds = currentSenders.map(sender => 
+        sender.track ? sender.track.id : null
+      );
+      
       this.localStream.getTracks().forEach(track => {
-        console.log(`Adding ${track.kind} track to peer connection`);
-        this.peerConnection.addTrack(track, this.localStream);
+        // Only add the track if it's not already added
+        if (!currentTrackIds.includes(track.id)) {
+          console.log(`Adding ${track.kind} track to peer connection`);
+          this.peerConnection.addTrack(track, this.localStream);
+        } else {
+          console.log(`Track ${track.kind} already exists in peer connection, skipping`);
+        }
       });
     } else {
       console.warn('Cannot add tracks - localStream or peerConnection not available');
@@ -195,6 +207,12 @@ class WebRTCService {
       // Make sure we have tracks added before creating offer
       this.addLocalStreamToPeerConnection();
 
+      // Check if we already have a local description
+      if (this.peerConnection.signalingState !== 'stable') {
+        console.log('Cannot create offer - signaling state is not stable:', this.peerConnection.signalingState);
+        return;
+      }
+
       const offer = await this.peerConnection.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: true
@@ -218,6 +236,19 @@ class WebRTCService {
    */
   async handleOffer(offer, from) {
     try {
+      // Check if we're in a state where we can set a remote description
+      if (this.peerConnection.signalingState !== 'stable') {
+        console.log('Cannot handle offer - signaling state is not stable:', this.peerConnection.signalingState);
+        
+        // If we have a local description but no remote description, we can reset
+        if (this.peerConnection.signalingState === 'have-local-offer') {
+          console.log('Rolling back local description to handle incoming offer');
+          await this.peerConnection.setLocalDescription({type: 'rollback'});
+        } else {
+          return; // Cannot proceed in current state
+        }
+      }
+      
       console.log('Setting remote description from offer');
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
       
@@ -245,6 +276,12 @@ class WebRTCService {
    */
   async handleAnswer(answer) {
     try {
+      // Check if we're in a state where we can set a remote answer
+      if (this.peerConnection.signalingState !== 'have-local-offer') {
+        console.log('Cannot handle answer - not in have-local-offer state:', this.peerConnection.signalingState);
+        return;
+      }
+      
       console.log('Setting remote description from answer');
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
       console.log('Remote description set successfully');
@@ -341,11 +378,18 @@ class WebRTCService {
 
     // Close the peer connection
     if (this.peerConnection) {
+      // Remove all event listeners
+      this.peerConnection.onicecandidate = null;
+      this.peerConnection.oniceconnectionstatechange = null;
+      this.peerConnection.ontrack = null;
+      this.peerConnection.onconnectionstatechange = null;
+      
+      // Close the connection
       this.peerConnection.close();
       this.peerConnection = null;
       console.log('Closed peer connection');
     }
-
+    
     // Reset state
     this.isInitiator = false;
   }
