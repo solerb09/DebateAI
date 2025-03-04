@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';  
+import { useNavigate, Link } from 'react-router-dom';  
 
 function LoginPage() {
   const { login } = useAuth();
@@ -23,26 +23,34 @@ function LoginPage() {
   };
 
   return (
-    <div>
-      <h2>Login</h2>
-      <form onSubmit={handleLogin}>
-        <input 
-          type="email" 
-          value={email} 
-          onChange={(e) => setEmail(e.target.value)} 
-          placeholder="Email" 
-          required 
-        />
-        <input 
-          type="password" 
-          value={password} 
-          onChange={(e) => setPassword(e.target.value)} 
-          placeholder="Password" 
-          required 
-        />
-        <button type="submit">Login</button>
-      </form>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+    <div className="container login-container">
+      <div className="login-card">
+        <h2 className="login-title">Login</h2>
+        <form className="login-form" onSubmit={handleLogin}>
+          <input 
+            type="email" 
+            value={email} 
+            onChange={(e) => setEmail(e.target.value)} 
+            placeholder="Email" 
+            required 
+          />
+          <input 
+            type="password" 
+            value={password} 
+            onChange={(e) => setPassword(e.target.value)} 
+            placeholder="Password" 
+            required 
+          />
+          <button type="submit">Login</button>
+        </form>
+        <div className="login-signup-link">
+          Don't have an account?{' '}
+          <Link to="/signup">
+            Sign up
+          </Link>
+        </div>
+        {error && <p className="login-error">{error}</p>}
+      </div>
     </div>
   );
 }
