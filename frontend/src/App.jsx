@@ -21,23 +21,23 @@ function ProtectedRoute({ children }) {
 
 function App() {
   return (
-    <div className="app">
-      <Header />
-      <main className="container">
-        <AuthProvider>
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/debates" element={<ProtectedRoute><DebateListPage /></ProtectedRoute>} />
-            <Route path="/debates/create" element={<ProtectedRoute><CreateDebatePage /></ProtectedRoute>} />
-            <Route path="/debates/:id" element={<ProtectedRoute><DebateRoomPage /></ProtectedRoute>} />
-            <Route path="/call" element={<CallTestPage />} />
-            <Route path="/login" element={<LoginPage />} /> 
-            <Route path="/404" element={<NotFoundPage />} />
-            <Route path="*" element={<Navigate to="/404" replace />} />
-          </Routes>
-        </AuthProvider>
-      </main>
-    </div>
+    <AuthProvider>
+      <div className="app">
+        <Header />
+        <main className="container">
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/debates" element={<ProtectedRoute><DebateListPage /></ProtectedRoute>} />
+              <Route path="/debates/create" element={<ProtectedRoute><CreateDebatePage /></ProtectedRoute>} />
+              <Route path="/debates/:id" element={<ProtectedRoute><DebateRoomPage /></ProtectedRoute>} />
+              <Route path="/call" element={<CallTestPage />} />
+              <Route path="/login" element={<LoginPage />} /> 
+              <Route path="/404" element={<NotFoundPage />} />
+              <Route path="*" element={<Navigate to="/404" replace />} />
+            </Routes>
+        </main>
+      </div>
+    </AuthProvider>
   );
 }
 

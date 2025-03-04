@@ -1,10 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
-/**
- * Header component with navigation links
- */
 const Header = () => {
+  const { authState, logout } = useAuth(); 
+
   return (
     <header className="header">
       <div className="container">
@@ -22,9 +22,15 @@ const Header = () => {
             <li className="nav-link">
               <Link to="/call">Test Call</Link>
             </li>
-            <li className="nav-link">
-              <Link to="/login">Login</Link>
-            </li>
+            {authState.isAuthenticated ? ( // if authenticated, show logout
+              <li className="nav-link">
+                <button onClick={logout} className="logout-button">Logout</button>
+              </li>
+            ) : (
+              <li className="nav-link"> // if not authenticated, show login
+                <Link to="/login">Login</Link>
+              </li>
+            )}
           </ul>
         </nav>
       </div>
@@ -32,4 +38,4 @@ const Header = () => {
   );
 };
 
-export default Header; 
+export default Header;
