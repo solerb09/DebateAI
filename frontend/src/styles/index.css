@@ -139,6 +139,20 @@ a:hover {
   margin-left: 1.5rem;
 }
 
+.nav-button {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: none;
+  font-family: inherit;
+}
+
+.nav-button:hover {
+  text-decoration: underline;
+}
 /* Debate room video styles */
 .video-container {
   display: grid;

@@ -24,10 +24,11 @@ const Header = () => {
             </li>
             {authState.isAuthenticated ? ( // if authenticated, show logout
               <li className="nav-link">
-                <button onClick={logout} className="logout-button">Logout</button>
+                <button onClick={logout} className="nav-button">Logout</button>
               </li>
             ) : (
-              <li className="nav-link"> // if not authenticated, show login
+              // if not authenticated, show login
+              <li className="nav-link"> 
                 <Link to="/login">Login</Link>
               </li>
             )}
