@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 const Header = () => {
+
   const { authState, logout } = useAuth(); 
+
 
   return (
     <header className="header">
@@ -22,6 +24,7 @@ const Header = () => {
             <li className="nav-link">
               <Link to="/call">Test Call</Link>
             </li>
+
             {authState.isAuthenticated ? ( // if authenticated, show logout
               <li className="nav-link">
                 <button onClick={logout} className="nav-button">Logout</button>
@@ -32,6 +35,11 @@ const Header = () => {
                 <Link to="/login">Login</Link>
               </li>
             )}
+            <li className="nav-link">
+              <Link to="/signup">Sign Up</Link>
+            </li>
+            
+
           </ul>
         </nav>
       </div>

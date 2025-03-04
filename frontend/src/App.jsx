@@ -7,6 +7,7 @@ import CreateDebatePage from './pages/CreateDebatePage';
 import DebateRoomPage from './pages/DebateRoomPage';
 import CallTestPage from './pages/CallTestPage';
 import NotFoundPage from './pages/NotFoundPage';
+import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage'; 
 import { AuthProvider, AuthContext } from './contexts/AuthContext'; 
 
