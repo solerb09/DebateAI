@@ -30,15 +30,18 @@ const Header = () => {
                 <button onClick={logout} className="nav-button">Logout</button>
               </li>
             ) : (
-              // if not authenticated, show login
-              <li className="nav-link"> 
-                <Link to="/login">Login</Link>
+                    // if not authenticated, show login
+
+              <>
+                <li className="nav-link"> 
+                  <Link to="/login">Login</Link>
+                </li>
+              )
+              (
+              <li className="nav-link">
+                <Link to="/signup">Sign Up</Link>
               </li>
-            )
-            (
-            <li className="nav-link">
-              <Link to="/signup">Sign Up</Link>
-            </li>
+             </>
             )}
 
           </ul>
