@@ -59,6 +59,8 @@ const DebateRoomPage = () => {
   useEffect(() => {
     if (loading || error) return;
     
+    let mounted = true;
+    
     // Create socket connection
     socketRef.current = io();
     
@@ -72,18 +74,20 @@ const DebateRoomPage = () => {
     
     // Set up WebRTC callbacks
     webrtcServiceRef.current.onRemoteStream((stream) => {
-      if (remoteVideoRef.current) {
+      if (remoteVideoRef.current && mounted) {
         remoteVideoRef.current.srcObject = stream;
       }
     });
     
     webrtcServiceRef.current.onConnectionStateChange((state) => {
-      setConnectionState(state);
-      
-      // Handle disconnection
-      if (state === 'disconnected' || state === 'failed' || state === 'closed') {
-        // Show appropriate UI
-        console.log('Peer disconnected or connection failed');
+      if (mounted) {
+        setConnectionState(state);
+        
+        // Handle disconnection
+        if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+          // Show appropriate UI
+          console.log('Peer disconnected or connection failed');
+        }
       }
     });
     
@@ -91,7 +95,7 @@ const DebateRoomPage = () => {
     const startMedia = async () => {
       try {
         const stream = await webrtcServiceRef.current.startLocalStream();
-        if (localVideoRef.current) {
+        if (localVideoRef.current && mounted) {
           localVideoRef.current.srcObject = stream;
         }
         
@@ -99,7 +103,9 @@ const DebateRoomPage = () => {
         webrtcServiceRef.current.joinDebate();
       } catch (err) {
         console.error('Failed to start media:', err);
-        setError('Failed to access camera or microphone. Please check permissions and try again.');
+        if (mounted) {
+          setError('Failed to access camera or microphone. Please check permissions and try again.');
+        }
       }
     };
     
@@ -108,24 +114,43 @@ const DebateRoomPage = () => {
     // Update debate status to active
     updateDebateStatus('active');
     
-    // Clean up on unmount
-    return () => {
+    // Add beforeunload event listener to handle tab close
+    const handleBeforeUnload = () => {
+      console.log('Window closing, cleaning up debate resources');
       if (webrtcServiceRef.current) {
         webrtcServiceRef.current.leaveDebate();
       }
       
-      if (socketRef.current) {
-        socketRef.current.disconnect();
+      // We don't need to update the debate status here as the server will handle it
+      // when it detects the socket disconnection
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    // Clean up on unmount
+    return () => {
+      mounted = false;
+      
+      // Remove beforeunload event listener
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      
+      // Ensure we leave the debate properly
+      if (webrtcServiceRef.current) {
+        webrtcServiceRef.current.leaveDebate();
+        webrtcServiceRef.current = null;
       }
       
-      // Update debate status back to open when leaving
-      updateDebateStatus('open');
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     };
   }, [debateId, loading, error]);
   
   // Update debate status
   const updateDebateStatus = async (status) => {
     try {
+      console.log(`Updating debate ${debateId} status to ${status}`);
       const response = await fetch(`/api/debates/${debateId}`, {
         method: 'PUT',
         headers: {
@@ -135,10 +160,15 @@ const DebateRoomPage = () => {
       });
       
       if (!response.ok) {
-        console.error('Failed to update debate status');
+        const errorText = await response.text();
+        console.error(`Failed to update debate status: ${errorText}`);
+        throw new Error(`Failed to update debate status: ${response.status}`);
       }
+      
+      return response.json();
     } catch (err) {
       console.error('Error updating debate status:', err);
+      throw err;
     }
   };
   
@@ -162,11 +192,25 @@ const DebateRoomPage = () => {
   
   // Leave debate
   const leaveDebate = () => {
-    if (webrtcServiceRef.current) {
-      webrtcServiceRef.current.leaveDebate();
-    }
-    
-    navigate('/debates');
+    // First update the debate status to open
+    updateDebateStatus('open').then(() => {
+      // Then leave the debate
+      if (webrtcServiceRef.current) {
+        webrtcServiceRef.current.leaveDebate();
+        webrtcServiceRef.current = null;
+      }
+      
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      
+      navigate('/debates');
+    }).catch(err => {
+      console.error('Error leaving debate:', err);
+      // Still navigate away even if there's an error
+      navigate('/debates');
+    });
   };
   
   if (loading) {

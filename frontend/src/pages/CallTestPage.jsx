@@ -57,6 +57,17 @@ const CallTestPage = () => {
     
     const setupConnection = async () => {
       try {
+        // Clean up any existing connections first
+        if (webrtcServiceRef.current) {
+          webrtcServiceRef.current.leaveDebate();
+          webrtcServiceRef.current = null;
+        }
+        
+        if (socketRef.current) {
+          socketRef.current.disconnect();
+          socketRef.current = null;
+        }
+        
         // Create socket connection
         socketRef.current = io();
         console.log('Socket.io connection established');
@@ -160,6 +171,16 @@ const CallTestPage = () => {
   
   // Refresh page to try again
   const refreshPage = () => {
+    // Clean up resources before reloading
+    if (webrtcServiceRef.current) {
+      webrtcServiceRef.current.leaveDebate();
+    }
+    
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
+    
+    // Reload the page
     window.location.reload();
   };
   
