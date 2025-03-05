@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * DebateListPage component - shows all available debate topics
@@ -9,24 +11,55 @@ const DebateListPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const { authState } = useAuth();
 
-  // Fetch debates from the API
+  // Fetch debates from the database
   useEffect(() => {
     const fetchDebates = async () => {
       try {
         setLoading(true);
-        const response = await fetch('/api/debates');
         
-        if (!response.ok) {
-          throw new Error(`Error: ${response.status}`);
+        // Fetch debate topics with their categories
+        const { data: topics, error: topicsError } = await supabase
+          .from('debate_topics')
+          .select(`
+            *,
+            categories(name),
+            debate_rooms(
+              id,
+              status
+            )
+          `)
+          .order('created_at', { ascending: false });
+          
+        if (topicsError) {
+          throw topicsError;
         }
         
-        const data = await response.json();
-        setDebates(data);
-        setLoading(false);
+        // Process the data to make it easier to work with
+        const processedTopics = topics.map(topic => {
+          // Find a waiting or active room for this topic
+          const availableRoom = topic.debate_rooms.find(room => 
+            room.status === 'waiting' || room.status === 'active'
+          );
+          
+          return {
+            id: topic.id,
+            title: topic.title,
+            description: topic.description,
+            category: topic.categories?.name || 'Uncategorized',
+            status: topic.status,
+            createdAt: new Date(topic.created_at).toLocaleString(),
+            roomId: availableRoom?.id,
+            roomStatus: availableRoom?.status
+          };
+        });
+        
+        setDebates(processedTopics);
       } catch (err) {
-        console.error('Failed to fetch debates:', err);
+        console.error('Error fetching debates:', err);
         setError('Failed to load debates. Please try again later.');
+      } finally {
         setLoading(false);
       }
     };
@@ -71,19 +104,28 @@ const DebateListPage = () => {
               <h2>{debate.title}</h2>
               <p>{debate.description}</p>
               <div className="debate-meta" style={{ display: 'flex', marginTop: '1rem', fontSize: '0.9rem', color: 'var(--dark-gray)' }}>
-                <span>Created by: {debate.creator}</span>
+                <span>Category: {debate.category}</span>
                 <span style={{ marginLeft: 'auto' }}>
-                  {new Date(debate.createdAt).toLocaleDateString()}
+                  {debate.createdAt}
                 </span>
               </div>
-              <button
-                onClick={() => handleJoinDebate(debate.id)}
-                className="btn"
-                style={{ marginTop: '1rem' }}
-                disabled={debate.status !== 'open'}
-              >
-                {debate.status === 'open' ? 'Join Debate' : 'Debate In Progress'}
-              </button>
+              {debate.roomId ? (
+                <button
+                  onClick={() => handleJoinDebate(debate.roomId)}
+                  className="btn"
+                  style={{ marginTop: '1rem' }}
+                >
+                  {debate.roomStatus === 'waiting' ? 'Join Debate' : 'View Debate'}
+                </button>
+              ) : (
+                <button
+                  onClick={() => navigate(`/debates/create?topicId=${debate.id}`)}
+                  className="btn"
+                  style={{ marginTop: '1rem' }}
+                >
+                  Start Debate
+                </button>
+              )}
             </div>
           ))}
         </div>

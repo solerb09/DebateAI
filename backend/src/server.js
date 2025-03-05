@@ -12,6 +12,7 @@ require('dotenv').config();
 // Import route handlers
 const debateRoutes = require('./routes/debateRoutes');
 const testRoutes = require('./routes/testRoutes');
+const audioRoutes = require('./routes/audioRoutes');
 
 // Initialize Express app
 const app = express();
@@ -50,6 +51,7 @@ app.locals.TEST_ROOM_ID = TEST_ROOM_ID;
 // Routes
 app.use('/api/debates', debateRoutes);
 app.use('/api/test', testRoutes);
+app.use('/api/audio', audioRoutes);
 
 // Basic route
 app.get('/', (req, res) => {
