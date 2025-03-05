@@ -238,6 +238,19 @@ io.on('connection', (socket) => {
         });
       }
       
+      // If room is now empty or has only one participant, update debate status to 'open'
+      if (debateId !== TEST_ROOM_ID && debateRooms[debateId].participants.length <= 1) {
+        // Find the debate in the debates array and update its status
+        const debateRoutes = require('./routes/debateRoutes');
+        const debates = debateRoutes.getDebates();
+        const debateIndex = debates.findIndex(d => d.id === debateId);
+        
+        if (debateIndex !== -1) {
+          debates[debateIndex].status = 'open';
+          console.log(`Updated debate ${debateId} status to 'open'`);
+        }
+      }
+      
       // Clean up empty rooms (except test room)
       if (debateId !== TEST_ROOM_ID && debateRooms[debateId].participants.length === 0) {
         delete debateRooms[debateId];
@@ -284,6 +297,19 @@ io.on('connection', (socket) => {
           io.to(debateId).emit('participant_count', { 
             count: room.participants.length 
           });
+        }
+        
+        // If room is now empty or has only one participant, update debate status to 'open'
+        if (debateId !== TEST_ROOM_ID && room.participants.length <= 1) {
+          // Find the debate in the debates array and update its status
+          const debateRoutes = require('./routes/debateRoutes');
+          const debates = debateRoutes.getDebates();
+          const debateIndex = debates.findIndex(d => d.id === debateId);
+          
+          if (debateIndex !== -1) {
+            debates[debateIndex].status = 'open';
+            console.log(`Updated debate ${debateId} status to 'open' after disconnect`);
+          }
         }
         
         // Clean up empty rooms (except test room)

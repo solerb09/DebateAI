@@ -1,0 +1,18 @@
+The Debate AI project is a web application designed to bring structured debates into a digital environment. Here’s an overview:
+
+User Interaction:
+Users can log in, create debate topics, and invite another user to join a debate. The platform facilitates real-time, one-on-one debates where participants can discuss their viewpoints.
+
+Real-Time Communication:
+The application employs WebRTC for direct, peer-to-peer video and audio communication. This allows both users to see and hear each other, simulating an in-person debate experience.
+
+Signaling and Room Management:
+A Node.js backend with Socket.io is used to manage signaling for WebRTC. The server handles joining debate rooms, coordinating offer/answer exchanges, ICE candidate exchange, and overall room state. This ensures that the correct signaling data is routed between the two debate participants.
+
+Transcription and AI Grading:
+Alongside live video, the platform transcribes the audio. These transcriptions can then be used for AI-powered analysis and grading of debate performance, providing feedback based on clarity, argument structure, and more.
+
+Challenges Addressed:
+Key challenges include establishing and maintaining stable two-user video and audio connections across various web browsers and network conditions, as well as integrating a robust real-time transcription system (with a focus on solutions like OpenAI’s Whisper) to feed into the AI grading system.
+
+In essence, the Debate AI project aims to combine live, interactive debate sessions with cutting-edge speech-to-text and AI analysis, offering a platform for users to practice and refine their debating skills in a dynamic, technology-driven environment.
