@@ -38,12 +38,7 @@ const DebateRoomPage = () => {
       return authState.user.id;
     }
     
-    // Fallback to localStorage for backward compatibility or guest users
-    let userId = localStorage.getItem('userId');
-    if (!userId) {
-      userId = 'guest_' + Math.random().toString(36).substring(2, 9);
-      localStorage.setItem('userId', userId);
-    }
+    
     return userId;
   };
   
