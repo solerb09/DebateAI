@@ -10,6 +10,7 @@ import NotFoundPage from './pages/NotFoundPage';
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage'; 
 import { AuthProvider, AuthContext } from './contexts/AuthContext'; 
+import ProfilePage from './pages/ProfilePage';
 
 
 function ProtectedRoute({ children }) {
@@ -28,12 +29,14 @@ function App() {
         <main className="container">
             <Routes>
               <Route path="/" element={<HomePage />} />
-              <Route path="/debates" element={<ProtectedRoute><DebateListPage /></ProtectedRoute>} />
-              <Route path="/debates/create" element={<ProtectedRoute><CreateDebatePage /></ProtectedRoute>} />
-              <Route path="/debates/:id" element={<ProtectedRoute><DebateRoomPage /></ProtectedRoute>} />
+              <Route path="/debates" element={<DebateListPage />} />
+              <Route path="/debates/create" element={<CreateDebatePage />} />
+              <Route path="/debates/:id" element={<DebateRoomPage />} />
               <Route path="/call" element={<CallTestPage />} />
               <Route path="/login" element={<LoginPage />} /> 
+              <Route path="/signup" element={<SignupPage />} />
               <Route path="/404" element={<NotFoundPage />} />
+              <Route path="/profile" element={<ProfilePage />} />
               <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>
         </main>
