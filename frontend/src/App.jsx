@@ -13,11 +13,20 @@ import { AuthProvider, AuthContext } from './contexts/AuthContext';
 
 
 function ProtectedRoute({ children }) {
-  const { authState } = useContext(AuthContext); 
-  if (!authState.isAuthenticated) {
-    return <Navigate to="/login" replace />; // Redirect to login if not authenticated
+  const { authState } = useContext(AuthContext);
+  
+  // When still loading, show nothing or a loading indicator
+  if (authState.isLoading) {
+    return <div className="loading">Loading...</div>; 
   }
-  return children; // If authenticated, render the protected page
+  
+  // Only redirect if we've finished loading and the user is not authenticated
+  if (!authState.isAuthenticated) {
+    return <Navigate to="/login" replace />; 
+  }
+  
+  // If authenticated, render the protected content
+  return children;
 }
 
 function App() {
@@ -33,6 +42,7 @@ function App() {
               <Route path="/debates/:id" element={<ProtectedRoute><DebateRoomPage /></ProtectedRoute>} />
               <Route path="/call" element={<CallTestPage />} />
               <Route path="/login" element={<LoginPage />} /> 
+              <Route path="/signup" element={<SignupPage />} />
               <Route path="/404" element={<NotFoundPage />} />
               <Route path="*" element={<Navigate to="/404" replace />} />
             </Routes>
