@@ -22,7 +22,6 @@ const Header = () => {
               <Link to="/debates/create">Create Debate</Link>
             </li>
             <li className="nav-link">
-              <Link to="/call">Test Call</Link>
             </li>
 
             {authState.isAuthenticated ? ( // if authenticated, show logout
