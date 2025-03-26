@@ -63,9 +63,9 @@ class WebRTCService {
       this.handleIceCandidate(candidate);
     });
 
-    // Handle debate ready event (both users present)
-    this.socket.on('debate_ready', ({ participants }) => {
-      console.log('Debate ready, participants:', participants);
+    // Replace the 'debate_ready' event with 'debate_participants_connected'
+    this.socket.on('debate_participants_connected', ({ participants }) => {
+      console.log('Both participants are connected, ready for WebRTC:', participants);
       
       // If we are the first participant, initiate the call
       if (participants[0] === this.userId) {
@@ -79,6 +79,12 @@ class WebRTCService {
       } else {
         console.log('I am the receiver, waiting for offer');
       }
+    });
+    
+    // Handle debate_ready event - called when both users have marked themselves as ready
+    this.socket.on('debate_ready', ({ participants }) => {
+      console.log('Debate ready, both participants have indicated readiness:', participants);
+      // No need to do anything here as the DebateRoomPage will handle the UI state
     });
   }
 
@@ -430,6 +436,15 @@ class WebRTCService {
    */
   cleanup() {
     console.log('Cleaning up WebRTC resources');
+    
+    // Remove socket event listeners
+    if (this.socket) {
+      this.socket.off('offer');
+      this.socket.off('answer');
+      this.socket.off('ice_candidate');
+      this.socket.off('debate_ready');
+      this.socket.off('debate_participants_connected');
+    }
     
     // Stop any active recordings
     if (this.isRecording) {

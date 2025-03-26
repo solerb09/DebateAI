@@ -125,12 +125,13 @@ io.on('connection', (socket) => {
       });
     }
     
-    // If we have two participants, start the debate
+    // If we have two participants, notify the room but don't mark as ready yet
     if (debateRooms[debateId].participants.length >= 2) {
-      console.log(`Debate ready in room ${debateId} with participants:`, 
+      console.log(`Two participants in room ${debateId}:`, 
         debateRooms[debateId].participants.map(p => p.userId));
         
-      io.to(debateId).emit('debate_ready', { 
+      // Don't emit 'debate_ready' here - only emit 'debate_participants_connected'
+      io.to(debateId).emit('debate_participants_connected', { 
         participants: debateRooms[debateId].participants.map(p => p.userId) 
       });
     }
@@ -404,6 +405,36 @@ io.on('connection', (socket) => {
         }
       }, 1000);
     }
+  });
+
+  // Handle turn completion (when a speaker's time is up)
+  socket.on('turn_complete', ({ debateId, userId }) => {
+    console.log(`Turn completed by user ${userId} in debate ${debateId}`);
+    
+    const debateRoom = debateRooms[debateId];
+    if (!debateRoom || debateRoom.status !== 'debating') {
+      console.log(`Cannot complete turn - debate ${debateId} is not in debating state`);
+      return;
+    }
+    
+    // Verify the user is the current speaker by checking roles
+    const userRole = debateRoom.roles && debateRoom.roles[userId];
+    if (!userRole || userRole !== debateRoom.turn) {
+      console.log(`User ${userId} is not the current speaker`);
+      return;
+    }
+    
+    // Switch turns
+    const newTurn = debateRoom.turn === 'pro' ? 'con' : 'pro';
+    debateRoom.turn = newTurn;
+    
+    console.log(`Switching turn to ${newTurn}`);
+    
+    // Notify all clients about the turn change
+    io.to(debateId).emit('speaking_turn', {
+      turn: newTurn,
+      timeRemaining: 120 // Reset to 2 minutes
+    });
   });
 });
 

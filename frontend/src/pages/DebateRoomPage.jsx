@@ -133,14 +133,34 @@ const DebateRoomPage = () => {
     });
     
     // Socket event listeners for debate structure
+    socketRef.current.on('user_joined', ({ userId: joinedUserId }) => {
+      console.log(`User ${joinedUserId} joined the debate`);
+      // If we're connected and someone joined, update to waiting state
+      if (connectionState === 'connected' && debateStatus === 'connecting') {
+        console.log('[SOCKET] Updating status to waiting due to user_joined event');
+        setDebateStatus('waiting');
+      }
+    });
+    
+    // Add new listener for debate_participants_connected event
+    socketRef.current.on('debate_participants_connected', ({ participants }) => {
+      console.log(`[SOCKET] Both participants connected in room: ${debateRoomId}`, participants);
+      
+      // If we were still in connecting state, update to waiting
+      if (debateStatus === 'connecting') {
+        console.log('[SOCKET] Updating status to waiting due to debate_participants_connected event');
+        setDebateStatus('waiting');
+      }
+    });
+    
     socketRef.current.on('user_ready', ({ userId: readyUserId, isReady: peerReady }) => {
-      console.log(`User ${readyUserId} ready status: ${peerReady}`);
+      console.log(`[SOCKET] User ${readyUserId} ready status: ${peerReady}`);
       // Update peer ready status
       setIsPeerReady(peerReady);
     });
     
     socketRef.current.on('debate_ready', ({ participants }) => {
-      console.log('Debate ready with participants:', participants);
+      console.log('[SOCKET] Debate ready with participants:', participants);
       setDebateStatus('ready');
     });
     
@@ -163,6 +183,13 @@ const DebateRoomPage = () => {
       
       // Initialize turn timer
       setTurnTimer(120); // 2 minutes per turn
+    });
+    
+    // Handle speaking turn changes
+    socketRef.current.on('speaking_turn', ({ turn, timeRemaining }) => {
+      console.log(`Speaking turn changed to: ${turn}`);
+      setSpeakingTurn(turn);
+      setTurnTimer(timeRemaining || 120);
     });
     
     // Start local stream
@@ -221,10 +248,13 @@ const DebateRoomPage = () => {
       
       // Clean up socket event listeners
       if (socketRef.current) {
+        socketRef.current.off('user_joined');
+        socketRef.current.off('debate_participants_connected');
         socketRef.current.off('user_ready');
         socketRef.current.off('debate_ready');
         socketRef.current.off('debate_countdown');
         socketRef.current.off('debate_start');
+        socketRef.current.off('speaking_turn');
       }
     };
   }, [debateRoomId, loading, error, debateStatus]);
@@ -413,14 +443,29 @@ const DebateRoomPage = () => {
     } else if (debateStatus === 'debating' && turnTimer > 0) {
       // Speaking turn timer
       timerId = setTimeout(() => {
-        setTurnTimer(prev => prev - 1);
+        setTurnTimer(prev => {
+          const newTime = prev - 1;
+          
+          // If time is up, emit event to change turns
+          if (newTime <= 0 && speakingTurn === debateRole) {
+            console.log('Turn timer reached zero, changing speaking turn');
+            if (socketRef.current) {
+              socketRef.current.emit('turn_complete', {
+                debateId: debateRoomId,
+                userId: getUserId()
+              });
+            }
+          }
+          
+          return newTime;
+        });
       }, 1000);
     }
     
     return () => {
       if (timerId) clearTimeout(timerId);
     };
-  }, [debateStatus, countdown, turnTimer]);
+  }, [debateStatus, countdown, turnTimer, speakingTurn, debateRole, debateRoomId]);
   
   if (loading) {
     return <div className="loading">Loading debate room...</div>;
@@ -442,6 +487,8 @@ const DebateRoomPage = () => {
   
   return (
     <div className="debate-room-page">
+      {console.log(`[Render] Debate Status: ${debateStatus}, Connection State: ${connectionState}, Ready Button Visible: ${debateStatus === 'waiting' && connectionState === 'connected'}`)}
+      
       <div className="debate-info card">
         <h1>{debateTopic?.title}</h1>
         <p>{debateTopic?.description}</p>
@@ -455,15 +502,23 @@ const DebateRoomPage = () => {
         <div className="debate-status">
           <div className="status-label">
             {debateStatus === 'connecting' && 'Establishing connection with peer...'}
-            {debateStatus === 'waiting' && 'Waiting for both participants to be ready'}
+            {debateStatus === 'waiting' && connectionState === 'connected' && 'Both participants connected. Click Ready when you are prepared to begin the debate.'}
+            {debateStatus === 'waiting' && connectionState !== 'connected' && 'Waiting for peer to connect...'}
             {debateStatus === 'ready' && 'Both participants are ready'}
             {debateStatus === 'countdown' && `Debate starting in ${countdown}`}
             {debateStatus === 'debating' && 'Debate in progress'}
             {debateStatus === 'finished' && 'Debate has ended'}
           </div>
           
-          {/* Show ready button in waiting state */}
-          {debateStatus === 'waiting' && (
+          {/* Display peer readiness status */}
+          {debateStatus === 'waiting' && connectionState === 'connected' && (
+            <div className="peer-status">
+              Peer status: {isPeerReady ? 'Ready ✓' : 'Not ready yet'}
+            </div>
+          )}
+          
+          {/* Show ready button only in waiting state and when connected */}
+          {debateStatus === 'waiting' && connectionState === 'connected' && (
             <button 
               className={`btn ${isReady ? 'btn-accent' : 'btn-primary'}`}
               onClick={toggleReady}
