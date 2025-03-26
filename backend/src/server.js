@@ -321,6 +321,90 @@ io.on('connection', (socket) => {
       }
     });
   });
+
+  // Handle user readiness status 
+  socket.on('user_ready', ({ debateId, userId, isReady }) => {
+    console.log(`User ${userId} in debate ${debateId} set ready status: ${isReady}`);
+    
+    const debateRoom = debateRooms[debateId];
+    if (!debateRoom) {
+      console.log(`Debate room ${debateId} does not exist`);
+      return;
+    }
+    
+    // Find participant
+    const participant = debateRoom.participants.find(p => p.userId === userId);
+    if (!participant) {
+      console.log(`Participant ${userId} not found in debate ${debateId}`);
+      return;
+    }
+    
+    // Store the ready status on the participant
+    participant.isReady = isReady;
+    
+    // Notify other participants about the ready status change
+    socket.to(debateId).emit('user_ready', { 
+      userId, 
+      isReady 
+    });
+    
+    // Check if all participants are ready
+    const allParticipants = debateRoom.participants;
+    const readyParticipants = allParticipants.filter(p => p.isReady);
+    
+    console.log(`Debate ${debateId}: ${readyParticipants.length}/${allParticipants.length} participants ready`);
+    
+    // If all participants are ready and there are at least 2, start the countdown
+    if (readyParticipants.length >= 2 && readyParticipants.length === allParticipants.length) {
+      console.log(`All participants in debate ${debateId} are ready, starting countdown`);
+      
+      // Set debate status to 'ready'
+      debateRoom.status = 'ready';
+      
+      // Emit ready event
+      io.to(debateId).emit('debate_ready', {
+        participants: allParticipants.map(p => p.userId)
+      });
+      
+      // Start countdown (5 seconds)
+      let count = 5;
+      debateRoom.status = 'countdown';
+      
+      // Send initial countdown event
+      io.to(debateId).emit('debate_countdown', { count });
+      
+      const countdownInterval = setInterval(() => {
+        count--;
+        
+        // Send countdown update
+        io.to(debateId).emit('debate_countdown', { count });
+        
+        // When countdown reaches zero, start the debate
+        if (count <= 0) {
+          clearInterval(countdownInterval);
+          
+          // Assign roles if not already assigned
+          if (!debateRoom.roles) {
+            debateRoom.roles = {};
+            debateRoom.roles[allParticipants[0].userId] = 'pro';
+            debateRoom.roles[allParticipants[1].userId] = 'con';
+          }
+          
+          // Set first speaking turn
+          debateRoom.turn = 'pro';
+          debateRoom.status = 'debating';
+          
+          // Notify clients that debate has started
+          io.to(debateId).emit('debate_start', { 
+            firstTurn: debateRoom.turn,
+            roles: debateRoom.roles
+          });
+          
+          console.log(`Debate ${debateId} started with roles:`, debateRoom.roles);
+        }
+      }, 1000);
+    }
+  });
 });
 
 // Add a route to reset the test room for debugging

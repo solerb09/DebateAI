@@ -5,7 +5,6 @@ import HomePage from './pages/HomePage';
 import DebateListPage from './pages/DebateListPage';
 import CreateDebatePage from './pages/CreateDebatePage';
 import DebateRoomPage from './pages/DebateRoomPage';
-import CallTestPage from './pages/CallTestPage';
 import NotFoundPage from './pages/NotFoundPage';
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage'; 
@@ -40,7 +39,6 @@ function App() {
               <Route path="/debates" element={<ProtectedRoute><DebateListPage /></ProtectedRoute>} />
               <Route path="/debates/create" element={<ProtectedRoute><CreateDebatePage /></ProtectedRoute>} />
               <Route path="/debates/:id" element={<ProtectedRoute><DebateRoomPage /></ProtectedRoute>} />
-              <Route path="/call" element={<CallTestPage />} />
               <Route path="/login" element={<LoginPage />} /> 
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/404" element={<NotFoundPage />} />

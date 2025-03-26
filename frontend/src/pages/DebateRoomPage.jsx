@@ -25,6 +25,15 @@ const DebateRoomPage = () => {
   const [recordingTime, setRecordingTime] = useState(0);
   const [uploadProgress, setUploadProgress] = useState(0);
   
+  // New state variables for debate structure
+  const [debateStatus, setDebateStatus] = useState('connecting'); // connecting, waiting, ready, countdown, debating, finished
+  const [isReady, setIsReady] = useState(false);
+  const [isPeerReady, setIsPeerReady] = useState(false);
+  const [debateRole, setDebateRole] = useState(null); // 'pro' or 'con'
+  const [speakingTurn, setSpeakingTurn] = useState(null); // 'pro' or 'con'
+  const [countdown, setCountdown] = useState(5);
+  const [turnTimer, setTurnTimer] = useState(120); // 2 minutes per turn
+  
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const socketRef = useRef(null);
@@ -110,12 +119,50 @@ const DebateRoomPage = () => {
       if (mounted) {
         setConnectionState(state);
         
+        // When connection is established, update debate status to 'waiting'
+        if (state === 'connected' && debateStatus === 'connecting') {
+          setDebateStatus('waiting');
+        }
+        
         // Handle disconnection
         if (state === 'disconnected' || state === 'failed' || state === 'closed') {
           // Show appropriate UI
           console.log('Peer disconnected or connection failed');
         }
       }
+    });
+    
+    // Socket event listeners for debate structure
+    socketRef.current.on('user_ready', ({ userId: readyUserId, isReady: peerReady }) => {
+      console.log(`User ${readyUserId} ready status: ${peerReady}`);
+      // Update peer ready status
+      setIsPeerReady(peerReady);
+    });
+    
+    socketRef.current.on('debate_ready', ({ participants }) => {
+      console.log('Debate ready with participants:', participants);
+      setDebateStatus('ready');
+    });
+    
+    socketRef.current.on('debate_countdown', ({ count }) => {
+      console.log('Debate countdown:', count);
+      setDebateStatus('countdown');
+      setCountdown(count);
+    });
+    
+    socketRef.current.on('debate_start', ({ firstTurn, roles }) => {
+      console.log('Debate started with first turn:', firstTurn);
+      setDebateStatus('debating');
+      setSpeakingTurn(firstTurn);
+      
+      // Get our role from the roles object
+      if (roles && userId) {
+        setDebateRole(roles[userId]);
+        console.log(`My role is: ${roles[userId]}`);
+      }
+      
+      // Initialize turn timer
+      setTurnTimer(120); // 2 minutes per turn
     });
     
     // Start local stream
@@ -171,8 +218,16 @@ const DebateRoomPage = () => {
         socketRef.current.disconnect();
         socketRef.current = null;
       }
+      
+      // Clean up socket event listeners
+      if (socketRef.current) {
+        socketRef.current.off('user_ready');
+        socketRef.current.off('debate_ready');
+        socketRef.current.off('debate_countdown');
+        socketRef.current.off('debate_start');
+      }
     };
-  }, [debateRoomId, loading, error]);
+  }, [debateRoomId, loading, error, debateStatus]);
   
   // Update debate status
   const updateDebateStatus = async (status) => {
@@ -331,6 +386,42 @@ const DebateRoomPage = () => {
     };
   }, []);
   
+  // Function to toggle ready status
+  const toggleReady = () => {
+    const newReadyStatus = !isReady;
+    setIsReady(newReadyStatus);
+    
+    // Emit ready status to server
+    socketRef.current.emit('user_ready', {
+      debateId: debateRoomId,
+      userId: getUserId(),
+      isReady: newReadyStatus
+    });
+    
+    console.log(`Set ready status to: ${newReadyStatus}`);
+  };
+  
+  // Timer effect for countdown and speaking turns
+  useEffect(() => {
+    let timerId;
+    
+    if (debateStatus === 'countdown' && countdown > 0) {
+      // Countdown timer before debate starts
+      timerId = setTimeout(() => {
+        setCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (debateStatus === 'debating' && turnTimer > 0) {
+      // Speaking turn timer
+      timerId = setTimeout(() => {
+        setTurnTimer(prev => prev - 1);
+      }, 1000);
+    }
+    
+    return () => {
+      if (timerId) clearTimeout(timerId);
+    };
+  }, [debateStatus, countdown, turnTimer]);
+  
   if (loading) {
     return <div className="loading">Loading debate room...</div>;
   }
@@ -359,6 +450,49 @@ const DebateRoomPage = () => {
             Category: {debateTopic.categories.name}
           </div>
         )}
+        
+        {/* Debate status display */}
+        <div className="debate-status">
+          <div className="status-label">
+            {debateStatus === 'connecting' && 'Establishing connection with peer...'}
+            {debateStatus === 'waiting' && 'Waiting for both participants to be ready'}
+            {debateStatus === 'ready' && 'Both participants are ready'}
+            {debateStatus === 'countdown' && `Debate starting in ${countdown}`}
+            {debateStatus === 'debating' && 'Debate in progress'}
+            {debateStatus === 'finished' && 'Debate has ended'}
+          </div>
+          
+          {/* Show ready button in waiting state */}
+          {debateStatus === 'waiting' && (
+            <button 
+              className={`btn ${isReady ? 'btn-accent' : 'btn-primary'}`}
+              onClick={toggleReady}
+            >
+              {isReady ? 'Ready ✓' : 'Ready?'}
+            </button>
+          )}
+          
+          {/* Show countdown timer */}
+          {debateStatus === 'countdown' && (
+            <div className="countdown-timer">
+              <div className="countdown-number">{countdown}</div>
+            </div>
+          )}
+          
+          {/* Show turn information when debating */}
+          {debateStatus === 'debating' && (
+            <div className="turn-info">
+              <div className="speaking-turn">
+                Speaking: <span className={`role-${speakingTurn}`}>
+                  {speakingTurn === 'pro' ? 'Affirmative' : 'Negative'} Side
+                </span>
+              </div>
+              <div className="turn-timer">
+                Time remaining: {formatTime(turnTimer)}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       
       <div className="connection-status">
@@ -383,7 +517,13 @@ const DebateRoomPage = () => {
             muted 
             playsInline
           />
-          <div className="video-label">You</div>
+          <div className="video-label">
+            You {debateRole && `(${debateRole === 'pro' ? 'Affirmative' : 'Negative'})`}
+            {speakingTurn === debateRole && debateStatus === 'debating' && ' - Speaking'}
+          </div>
+          {debateStatus === 'debating' && speakingTurn === debateRole && (
+            <div className="speaking-indicator">LIVE</div>
+          )}
         </div>
         
         <div className="video-wrapper">
@@ -393,7 +533,13 @@ const DebateRoomPage = () => {
             autoPlay 
             playsInline
           />
-          <div className="video-label">Peer</div>
+          <div className="video-label">
+            Peer {debateRole && `(${debateRole === 'pro' ? 'Negative' : 'Affirmative'})`}
+            {speakingTurn !== debateRole && debateStatus === 'debating' && ' - Speaking'}
+          </div>
+          {debateStatus === 'debating' && speakingTurn !== debateRole && (
+            <div className="speaking-indicator">LIVE</div>
+          )}
         </div>
       </div>
       
