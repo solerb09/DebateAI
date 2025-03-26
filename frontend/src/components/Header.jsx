@@ -45,7 +45,7 @@ const Header = () => {
                 <li className="nav-link">
                   <button 
                     onClick={() => logout()}
-                    className="logout-button"
+                    className="nav-button"
                   >
                     Sign Out
                   </button>
