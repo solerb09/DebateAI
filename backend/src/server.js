@@ -36,7 +36,7 @@ app.use(express.json());
 // In a production app, you'd likely use a database
 const debateRooms = {};
 
-// Special test room ID
+// Special test room ID (re-add this to fix the error)
 const TEST_ROOM_ID = 'test-call-room';
 
 // Initialize test room - always start with an empty participants array
@@ -59,124 +59,6 @@ app.use('/api/debates', debateRoutes);
 app.use('/api/test', testRoutes);
 app.use('/api/audio', audioRoutes);
 
-// Add a route to check debate participant details
-app.get('/api/debates/:debateId/participants', async (req, res) => {
-  try {
-    const { debateId } = req.params;
-    
-    if (!debateId) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Missing debate ID' 
-      });
-    }
-    
-    // Get participants from the database
-    const { data: dbParticipants, error } = await supabase
-      .from('debate_participants')
-      .select('id, user_id, side, is_ready, joined_at, left_at')
-      .eq('room_id', debateId)
-      .is('left_at', null);
-      
-    if (error) {
-      console.error('Error fetching debate participants:', error);
-      return res.status(500).json({ success: false, message: 'Error fetching debate participants' });
-    }
-    
-    // Get in-memory participants if they exist
-    let memoryParticipants = [];
-    if (debateRooms[debateId]) {
-      memoryParticipants = debateRooms[debateId].participants;
-    }
-    
-    // Get debate status from memory
-    const debateStatus = debateRooms[debateId]?.status || 'unknown';
-    const debateRoles = debateRooms[debateId]?.roles || {};
-    const currentTurn = debateRooms[debateId]?.turn || null;
-    
-    res.json({ 
-      success: true,
-      data: {
-        database_participants: dbParticipants,
-        memory_participants: memoryParticipants,
-        debate_status: debateStatus,
-        roles: debateRoles,
-        current_turn: currentTurn
-      }
-    });
-  } catch (error) {
-    console.error('Error checking debate participants:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
-// Add a route to manually assign debate roles
-app.post('/api/debates/:debateId/assign-roles', async (req, res) => {
-  try {
-    const { debateId } = req.params;
-    const { pro_user_id, con_user_id } = req.body;
-    
-    if (!debateId || !pro_user_id || !con_user_id) {
-      return res.status(400).json({ 
-        success: false, 
-        message: 'Missing required parameters. Please provide debateId, pro_user_id, and con_user_id.' 
-      });
-    }
-    
-    // Update the pro participant
-    const { error: proError } = await supabase
-      .from('debate_participants')
-      .update({ side: 'pro' })
-      .eq('room_id', debateId)
-      .eq('user_id', pro_user_id)
-      .is('left_at', null);
-      
-    if (proError) {
-      console.error('Error updating pro role:', proError);
-      return res.status(500).json({ success: false, message: 'Error updating pro role' });
-    }
-    
-    // Update the con participant
-    const { error: conError } = await supabase
-      .from('debate_participants')
-      .update({ side: 'con' })
-      .eq('room_id', debateId)
-      .eq('user_id', con_user_id)
-      .is('left_at', null);
-      
-    if (conError) {
-      console.error('Error updating con role:', conError);
-      return res.status(500).json({ success: false, message: 'Error updating con role' });
-    }
-    
-    // If this debate exists in memory, update its roles too
-    if (debateRooms[debateId]) {
-      // Create roles object if it doesn't exist
-      if (!debateRooms[debateId].roles) {
-        debateRooms[debateId].roles = {};
-      }
-      
-      // Set roles in memory
-      debateRooms[debateId].roles[pro_user_id] = 'pro';
-      debateRooms[debateId].roles[con_user_id] = 'con';
-      
-      console.log(`Updated roles in memory for debate ${debateId}`);
-    }
-    
-    res.json({ 
-      success: true, 
-      message: 'Debate roles assigned successfully',
-      data: {
-        pro: pro_user_id,
-        con: con_user_id
-      }
-    });
-  } catch (error) {
-    console.error('Error assigning debate roles:', error);
-    res.status(500).json({ success: false, message: 'Server error' });
-  }
-});
-
 // Basic route
 app.get('/', (req, res) => {
   res.send('Debate Platform API is running');
@@ -189,8 +71,12 @@ const logRoomState = (roomId) => {
       participantCount: debateRooms[roomId].participants.length,
       participants: debateRooms[roomId].participants.map(p => ({ 
         socketId: p.socketId.substring(0, 6) + '...', // Truncate for readability
-        userId: p.userId 
-      }))
+        userId: p.userId,
+        isReady: p.isReady 
+      })),
+      status: debateRooms[roomId].status || 'unknown',
+      roles: debateRooms[roomId].roles || {},
+      turn: debateRooms[roomId].turn || null
     });
   } else {
     console.log(`Room ${roomId} does not exist`);
@@ -214,7 +100,18 @@ io.on('connection', (socket) => {
       
       // Create room if it doesn't exist
       if (!debateRooms[debateId]) {
-        debateRooms[debateId] = { participants: [] };
+        debateRooms[debateId] = { 
+          participants: [],
+          roles: {},
+          status: 'waiting'
+        };
+        console.log(`Created new debate room ${debateId}`);
+      }
+      
+      // Ensure participants array exists and is valid
+      if (!debateRooms[debateId].participants || !Array.isArray(debateRooms[debateId].participants)) {
+        console.log(`Resetting participants array for room ${debateId} - was:`, JSON.stringify(debateRooms[debateId].participants));
+        debateRooms[debateId].participants = [];
       }
       
       // Check if user is already in the debate_participants table
@@ -255,28 +152,19 @@ io.on('connection', (socket) => {
         // Continue anyway - socket connection can still work
       }
       
-      // For test room: Check if this socket is already in the room's participants
-      if (debateId === TEST_ROOM_ID) {
-        // Remove any existing entries for this socket ID or user ID in the test room
-        const initialCount = debateRooms[TEST_ROOM_ID].participants.length;
-        debateRooms[TEST_ROOM_ID].participants = debateRooms[TEST_ROOM_ID].participants.filter(
-          p => p.socketId !== socket.id && p.userId !== userId
-        );
-        
-        const afterFilterCount = debateRooms[TEST_ROOM_ID].participants.length;
-        if (initialCount !== afterFilterCount) {
-          console.log(`Removed existing participant(s) for user ${userId}`);
-        }
-        
-        // Map this user ID to this socket ID
-        userSessions.set(userId, socket.id);
-      }
       
       // Add user to room
       debateRooms[debateId].participants.push({
         socketId: socket.id,
         userId
       });
+      
+      console.log(`Added user ${userId} to room ${debateId}, current participants:`, 
+        JSON.stringify(debateRooms[debateId].participants.map(p => ({
+          userId: p.userId,
+          socketId: p.socketId.substring(0, 6) + '...'
+        })))
+      );
       
       // Join socket.io room
       socket.join(debateId);
@@ -591,9 +479,12 @@ io.on('connection', (socket) => {
           if (count <= 0) {
             clearInterval(countdownInterval);
             
+            console.log(`Countdown reached zero for debate ${debateId}, checking participant data...`);
+            console.log(`All participants at this point:`, JSON.stringify(allParticipants));
+            
             // Make sure we have valid participants before trying to assign roles
             if (!allParticipants || !Array.isArray(allParticipants) || allParticipants.length < 2) {
-              console.error(`Invalid participants data in room ${debateId}`, allParticipants);
+              console.error(`Invalid participants data in room ${debateId}`, JSON.stringify(allParticipants));
               io.to(debateId).emit('debate_error', { 
                 message: 'Cannot start debate: not enough participants'
               });
@@ -604,7 +495,7 @@ io.on('connection', (socket) => {
             // Validate that all participants have userId
             for (let i = 0; i < Math.min(allParticipants.length, 2); i++) {
               if (!allParticipants[i] || !allParticipants[i].userId) {
-                console.error(`Invalid participant at index ${i} in room ${debateId}`, allParticipants[i]);
+                console.error(`Invalid participant at index ${i} in room ${debateId}`, JSON.stringify(allParticipants[i]));
                 io.to(debateId).emit('debate_error', { 
                   message: 'Cannot start debate: invalid participant data'
                 });
@@ -616,6 +507,7 @@ io.on('connection', (socket) => {
             // Fetch participant roles from the database
             (async () => {
               try {
+                console.log(`Fetching participant roles from database for debate ${debateId}...`);
                 const { data: participantsData, error } = await supabase
                   .from('debate_participants')
                   .select('user_id, side')
@@ -626,6 +518,8 @@ io.on('connection', (socket) => {
                   console.error('Error fetching participant roles from database:', error);
                   return;
                 }
+                
+                console.log(`Database participants for ${debateId}:`, JSON.stringify(participantsData));
                 
                 // Map user IDs to their roles from the database
                 const participantRoles = {};
@@ -638,6 +532,10 @@ io.on('connection', (socket) => {
                 // Check if we have roles for each participant
                 const participantIds = allParticipants.map(p => p.userId);
                 const missingRoles = participantIds.some(id => !participantRoles[id]);
+                
+                console.log(`Participant IDs in memory:`, JSON.stringify(participantIds));
+                console.log(`Roles from database:`, JSON.stringify(participantRoles));
+                console.log(`Missing roles?`, missingRoles);
                 
                 // If roles are incomplete in the database, assign them
                 if (Object.keys(participantRoles).length < 2 || missingRoles) {
