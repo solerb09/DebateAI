@@ -32,13 +32,16 @@ const DebateRoomPage = () => {
   const [debateRole, setDebateRole] = useState(null); // 'pro' or 'con'
   const [speakingTurn, setSpeakingTurn] = useState(null); // 'pro' or 'con'
   const [countdown, setCountdown] = useState(5);
-  const [turnTimer, setTurnTimer] = useState(120); // 2 minutes per turn
+  const [turnTimer, setTurnTimer] = useState(120); // 2 minutes (120 seconds) per turn
   
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const socketRef = useRef(null);
   const webrtcServiceRef = useRef(null);
   const recordingTimerRef = useRef(null);
+  
+  // New ref to track turn change requests
+  const turnChangeRequestRef = useRef(false);
   
   // Get actual user ID from authentication context
   const getUserId = () => {
@@ -181,15 +184,18 @@ const DebateRoomPage = () => {
         console.log(`My role is: ${roles[userId]}`);
       }
       
-      // Initialize turn timer
-      setTurnTimer(120); // 2 minutes per turn
+      // Initialize turn timer with 2 minutes (120 seconds)
+      setTurnTimer(120);
     });
     
     // Handle speaking turn changes
     socketRef.current.on('speaking_turn', ({ turn, timeRemaining }) => {
-      console.log(`Speaking turn changed to: ${turn}`);
+      console.log(`[Socket] Speaking turn changed to: ${turn} with ${timeRemaining} seconds remaining`);
       setSpeakingTurn(turn);
-      setTurnTimer(timeRemaining || 120);
+      setTurnTimer(timeRemaining || 120); // Use 2 minutes (120 seconds) as default if timeRemaining is not provided
+      
+      // Reset the turn change request flag
+      turnChangeRequestRef.current = false;
     });
     
     // Start local stream
@@ -447,25 +453,65 @@ const DebateRoomPage = () => {
           const newTime = prev - 1;
           
           // If time is up, emit event to change turns
-          if (newTime <= 0 && speakingTurn === debateRole) {
-            console.log('Turn timer reached zero, changing speaking turn');
+          if (newTime <= 0 && !turnChangeRequestRef.current) {
+            console.log('[Timer] Turn timer reached zero, sending turn_complete event');
+            
+            // Set the flag to prevent multiple requests
+            turnChangeRequestRef.current = true;
+            
             if (socketRef.current) {
               socketRef.current.emit('turn_complete', {
                 debateId: debateRoomId,
                 userId: getUserId()
               });
+              
+              // Set a timeout to clear the flag after 5 seconds to prevent deadlock
+              setTimeout(() => {
+                turnChangeRequestRef.current = false;
+              }, 5000);
             }
           }
           
           return newTime;
         });
       }, 1000);
+    } else if (debateStatus === 'debating' && turnTimer <= 0) {
+      // Safety mechanism: If timer is still at 0 after 3 seconds, try once more
+      // Only attempt to reset if we haven't already requested a turn change
+      if (!turnChangeRequestRef.current) {
+        console.log('[Timer] Timer is at 0 for 3 seconds, attempting to force reset turn');
+        timerId = setTimeout(() => {
+          if (socketRef.current) {
+            // Set the flag to prevent multiple requests
+            turnChangeRequestRef.current = true;
+            
+            socketRef.current.emit('turn_complete', {
+              debateId: debateRoomId,
+              userId: getUserId()
+            });
+            
+            // Set timer to a small positive value to prevent constant re-triggering
+            setTurnTimer(1);
+            
+            // Clear the flag after 5 seconds
+            setTimeout(() => {
+              turnChangeRequestRef.current = false;
+            }, 5000);
+          }
+        }, 3000); // Wait 3 seconds before retrying
+      }
     }
     
     return () => {
       if (timerId) clearTimeout(timerId);
     };
-  }, [debateStatus, countdown, turnTimer, speakingTurn, debateRole, debateRoomId]);
+  }, [debateStatus, countdown, turnTimer, debateRoomId]);
+  
+  // Reset the turn change request flag when a new turn starts
+  useEffect(() => {
+    // Reset the turn change request flag when the speaking turn changes
+    turnChangeRequestRef.current = false;
+  }, [speakingTurn]);
   
   if (loading) {
     return <div className="loading">Loading debate room...</div>;

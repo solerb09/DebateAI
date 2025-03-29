@@ -111,6 +111,12 @@ const initializeDebateRoom = (debateId) => {
 const handleUserLeavingDebate = (debateId) => {
   const room = debateRooms[debateId];
   
+  // Clear any active turn timer
+  if (room && room.turnTimer) {
+    clearTimeout(room.turnTimer);
+    room.turnTimer = null;
+  }
+  
   // If room is now empty or has only one participant, update debate status to 'open'
   if (room && room.participants.length <= 1) {
     // Find the debate in the debates array and update its status
@@ -221,6 +227,11 @@ const startDebateAfterCountdown = (debateId, allParticipants) => {
   debateRoom.turn = 'pro';
   debateRoom.status = 'debating';
   
+  // Initialize turn timer with 2 minutes (120 seconds)
+  debateRoom.turnTimer = setTimeout(() => {
+    handleTurnExpiration(debateId);
+  }, 120000); // 2 minutes (120 seconds) turn timer
+  
   // Notify clients that debate has started
   io.to(debateId).emit('debate_start', { 
     firstTurn: debateRoom.turn,
@@ -228,6 +239,70 @@ const startDebateAfterCountdown = (debateId, allParticipants) => {
   });
   
   console.log(`Debate ${debateId} started with roles:`, debateRoom.roles);
+};
+
+// Handle turn timer expiration
+const handleTurnExpiration = (debateId) => {
+  console.log(`[handleTurnExpiration] Turn timer expired for debate ${debateId}`);
+  
+  // Get the debate room, with validation
+  const debateRoom = debateRooms[debateId];
+  
+  if (!debateRoom) {
+    console.error(`[handleTurnExpiration] Debate room ${debateId} not found`);
+    return;
+  }
+  
+  if (debateRoom.status !== 'debating') {
+    console.log(`[handleTurnExpiration] Debate ${debateId} is not in debating state (current: ${debateRoom.status})`);
+    return;
+  }
+  
+  // Prevent concurrent turn changes
+  if (debateRoom.isTurnChanging) {
+    console.log(`[handleTurnExpiration] Turn change already in progress for debate ${debateId}`);
+    return;
+  }
+  
+  // Set the flag to prevent concurrent changes
+  debateRoom.isTurnChanging = true;
+  
+  try {
+    // Get the current turn
+    const currentTurn = debateRoom.turn;
+    console.log(`[handleTurnExpiration] Current turn: ${currentTurn}`);
+    
+    // Calculate the next turn
+    const newTurn = currentTurn === 'pro' ? 'con' : 'pro';
+    console.log(`[handleTurnExpiration] Switching to ${newTurn}`);
+    
+    // Update the turn in the debate room
+    debateRoom.turn = newTurn;
+    
+    // Notify all clients about the turn change
+    console.log(`[handleTurnExpiration] Broadcasting new turn ${newTurn} to room ${debateId}`);
+    io.to(debateId).emit('speaking_turn', {
+      turn: newTurn,
+      timeRemaining: 120 // 2 minutes (120 seconds)
+    });
+    
+    // Clear any existing timer
+    if (debateRoom.turnTimer) {
+      clearTimeout(debateRoom.turnTimer);
+      debateRoom.turnTimer = null;
+    }
+    
+    // Set new turn timer with 2 minutes (120 seconds)
+    console.log(`[handleTurnExpiration] Setting new turn timer for 2 minutes (120 seconds)`);
+    debateRoom.turnTimer = setTimeout(() => {
+      handleTurnExpiration(debateId);
+    }, 120000); // 2 minutes (120 seconds) turn timer
+  } catch (error) {
+    console.error(`[handleTurnExpiration] Error handling turn expiration:`, error);
+  } finally {
+    // Clear the flag
+    debateRoom.isTurnChanging = false;
+  }
 };
 
 //------------------------------------------------------
@@ -329,6 +404,12 @@ io.on('connection', (socket) => {
     console.log(`User ${socket.id.substring(0, 6)}... leaving debate ${debateId}`);
     
     if (debateRooms[debateId]) {
+      // Clear any active turn timer
+      if (debateRooms[debateId].turnTimer) {
+        clearTimeout(debateRooms[debateId].turnTimer);
+        debateRooms[debateId].turnTimer = null;
+      }
+      
       // Find and remove the user from the room
       const participantIndex = debateRooms[debateId].participants.findIndex(
         p => p.socketId === socket.id
@@ -360,6 +441,12 @@ io.on('connection', (socket) => {
     // Check all rooms for this socket and clean up
     Object.keys(debateRooms).forEach(debateId => {
       const room = debateRooms[debateId];
+      
+      // Clear any active turn timer
+      if (room.turnTimer) {
+        clearTimeout(room.turnTimer);
+        room.turnTimer = null;
+      }
       
       // Check if this socket is in the room
       const participantIndex = room.participants.findIndex(p => p.socketId === socket.id);
@@ -647,32 +734,70 @@ io.on('connection', (socket) => {
 
   // Handle turn completion (when a speaker's time is up)
   socket.on('turn_complete', ({ debateId, userId }) => {
-    console.log(`Turn completed by user ${userId} in debate ${debateId}`);
+    console.log(`[turn_complete] Received turn_complete event from ${userId} for debate ${debateId}`);
     
+    // Get the debate room
     const debateRoom = debateRooms[debateId];
-    if (!debateRoom || debateRoom.status !== 'debating') {
-      console.log(`Cannot complete turn - debate ${debateId} is not in debating state`);
+    
+    // Additional validation
+    if (!debateRoom) {
+      console.error(`[turn_complete] Debate room ${debateId} not found`);
       return;
     }
     
-    // Verify the user is the current speaker by checking roles
-    const userRole = debateRoom.roles && debateRoom.roles[userId];
-    if (!userRole || userRole !== debateRoom.turn) {
-      console.log(`User ${userId} is not the current speaker`);
-      return;
-    }
-    
-    // Switch turns
-    const newTurn = debateRoom.turn === 'pro' ? 'con' : 'pro';
-    debateRoom.turn = newTurn;
-    
-    console.log(`Switching turn to ${newTurn}`);
-    
-    // Notify all clients about the turn change
-    io.to(debateId).emit('speaking_turn', {
-      turn: newTurn,
-      timeRemaining: 120 // Reset to 2 minutes
+    console.log(`[turn_complete] Current debate state:`, {
+      status: debateRoom.status,
+      turn: debateRoom.turn,
+      roles: debateRoom.roles,
+      participantCount: debateRoom.participants?.length,
     });
+      
+    // Validate the turn isn't already changing
+    if (debateRoom.isTurnChanging) {
+      console.log(`[turn_complete] Turn change already in progress for debate ${debateId}`);
+      return;
+    }
+    
+    // Set a flag to prevent multiple turn changes
+    debateRoom.isTurnChanging = true;
+    
+    try {
+      // Determine the next turn
+      const currentTurn = debateRoom.turn;
+      console.log(`[turn_complete] Current turn is ${currentTurn}`);
+      
+      const newTurn = currentTurn === 'pro' ? 'con' : 'pro';
+      console.log(`[turn_complete] Switching to ${newTurn}`);
+      
+      // Clear the current turn timer if it exists
+      if (debateRoom.turnTimer) {
+        console.log(`[turn_complete] Clearing existing turn timer`);
+        clearTimeout(debateRoom.turnTimer);
+        debateRoom.turnTimer = null;
+      }
+      
+      // Update the current turn
+      debateRoom.turn = newTurn;
+      
+      // Broadcast the new turn to all clients in the room
+      console.log(`[turn_complete] Broadcasting new turn ${newTurn} to room ${debateId}`);
+      io.to(debateId).emit('speaking_turn', {
+        turn: newTurn,
+        timeRemaining: 120 // 2 minutes (120 seconds)
+      });
+      
+      // Set new turn timer
+      console.log(`[turn_complete] Setting new turn timer for 2 minutes (120 seconds)`);
+      debateRoom.turnTimer = setTimeout(() => {
+        console.log(`[turn_timer] Turn timer expired for debate ${debateId}`);
+        handleTurnExpiration(debateId);
+      }, 120000); // 2 minutes (120 seconds) turn timer
+    } catch (error) {
+      console.error(`[turn_complete] Error handling turn complete:`, error);
+    } finally {
+      // Clear the flag
+      debateRoom.isTurnChanging = false;
+    }
   });
 });
 

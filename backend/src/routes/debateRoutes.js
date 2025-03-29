@@ -30,12 +30,47 @@ router.get('/', (req, res) => {
 });
 
 // Get a specific debate
-router.get('/:id', (req, res) => {
-  const debate = debates.find(d => d.id === req.params.id);
-  if (!debate) {
-    return res.status(404).json({ error: 'Debate not found' });
+router.get('/:id', async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    // First look in the in-memory array for backward compatibility
+    const debate = debates.find(d => d.id === id);
+    if (debate) {
+      return res.json(debate);
+    }
+    
+    // If not found in memory, check the database
+    const { data, error } = await supabase
+      .from('debate_rooms')
+      .select('*, debate_topics(title, description)')
+      .eq('id', id)
+      .single();
+      
+    if (error) {
+      if (error.code === 'PGRST116') { // No rows found
+        return res.status(404).json({ error: 'Debate not found' });
+      }
+      console.error(`Error fetching debate from database: ${error.message}`);
+      return res.status(500).json({ error: 'Database error', details: error.message });
+    }
+    
+    // Format the debate data to match the expected structure
+    const formattedDebate = {
+      id: data.id,
+      title: data.debate_topics?.title || 'Unknown Topic',
+      description: data.debate_topics?.description || '',
+      status: data.status,
+      createdAt: data.created_at,
+      endedAt: data.ended_at,
+      topicId: data.topic_id
+    };
+    
+    res.json(formattedDebate);
+  } catch (err) {
+    console.error(`Unexpected error fetching debate: ${err.message}`);
+    res.status(500).json({ error: 'Server error', details: err.message });
   }
-  res.json(debate);
 });
 
 // Create a new debate
@@ -62,22 +97,59 @@ router.post('/', (req, res) => {
 });
 
 // Update a debate (e.g., changing status)
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
+  const { id } = req.params;
   const { status } = req.body;
-  const index = debates.findIndex(d => d.id === req.params.id);
   
-  if (index === -1) {
-    return res.status(404).json({ error: 'Debate not found' });
+  try {
+    // First try to update in the in-memory array for backward compatibility
+    const index = debates.findIndex(d => d.id === id);
+    let inMemoryUpdated = false;
+    
+    if (index !== -1) {
+      // Update in-memory debate
+      debates[index] = {
+        ...debates[index],
+        ...req.body,
+        updatedAt: new Date()
+      };
+      inMemoryUpdated = true;
+    }
+    
+    // Also update the debate in the database - updating just the status, not timestamps
+    const { data, error } = await supabase
+      .from('debate_rooms')
+      .update({ status }) // Remove the updated_at field that doesn't exist
+      .eq('id', id)
+      .select()
+      .single();
+      
+    if (error) {
+      console.error(`Error updating debate in database: ${error.message}`);
+      
+      // If we updated in-memory but database failed, still consider it a success
+      if (inMemoryUpdated) {
+        return res.json(debates[index]);
+      }
+      
+      // Otherwise, handle as not found or another error
+      if (error.code === 'PGRST116') { // No rows updated
+        return res.status(404).json({ error: 'Debate not found' });
+      }
+      
+      return res.status(500).json({ error: 'Database error', details: error.message });
+    }
+    
+    // Update the in-memory room state if it exists
+    if (req.app.locals.debateRooms && req.app.locals.debateRooms[id]) {
+      req.app.locals.debateRooms[id].status = status;
+    }
+    
+    res.json(data || (inMemoryUpdated ? debates[index] : { id, status }));
+  } catch (err) {
+    console.error(`Unexpected error updating debate: ${err.message}`);
+    res.status(500).json({ error: 'Server error', details: err.message });
   }
-  
-  // Update debate
-  debates[index] = {
-    ...debates[index],
-    ...req.body,
-    updatedAt: new Date()
-  };
-  
-  res.json(debates[index]);
 });
 
 // Delete a debate
