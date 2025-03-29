@@ -12,8 +12,11 @@ const { createClient } = require('@supabase/supabase-js');
 
 // Import route handlers
 const debateRoutes = require('./routes/debateRoutes');
-const testRoutes = require('./routes/testRoutes');
 const audioRoutes = require('./routes/audioRoutes');
+
+//------------------------------------------------------
+// Initialize Express and Socket.io
+//------------------------------------------------------
 
 // Initialize Express app
 const app = express();
@@ -32,31 +35,27 @@ const io = socketIo(server, {
 app.use(cors());
 app.use(express.json());
 
-// In-memory storage for debate rooms and participants
-// In a production app, you'd likely use a database
-const debateRooms = {};
-
-// Special test room ID (re-add this to fix the error)
-const TEST_ROOM_ID = 'test-call-room';
-
-// Initialize test room - always start with an empty participants array
-debateRooms[TEST_ROOM_ID] = { participants: [] };
-
-// Track user sessions to prevent duplicate entries
-const userSessions = new Map();
-
-// Make debateRooms available to routes
-app.locals.debateRooms = debateRooms;
-app.locals.TEST_ROOM_ID = TEST_ROOM_ID;
+//------------------------------------------------------
+// Database and State Management
+//------------------------------------------------------
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Routes
+// In-memory storage for debate rooms and participants
+const debateRooms = {};
+
+// Make debateRooms available to routes
+app.locals.debateRooms = debateRooms;
+
+//------------------------------------------------------
+// Routes Configuration
+//------------------------------------------------------
+
+// API routes
 app.use('/api/debates', debateRoutes);
-app.use('/api/test', testRoutes);
 app.use('/api/audio', audioRoutes);
 
 // Basic route
@@ -64,29 +63,184 @@ app.get('/', (req, res) => {
   res.send('Debate Platform API is running');
 });
 
+//------------------------------------------------------
+// Helper Functions
+//------------------------------------------------------
+
 // Debug helper to print current room state
 const logRoomState = (roomId) => {
-  if (debateRooms[roomId]) {
-    console.log(`Room ${roomId} state:`, {
-      participantCount: debateRooms[roomId].participants.length,
-      participants: debateRooms[roomId].participants.map(p => ({ 
-        socketId: p.socketId.substring(0, 6) + '...', // Truncate for readability
-        userId: p.userId,
-        isReady: p.isReady 
-      })),
-      status: debateRooms[roomId].status || 'unknown',
-      roles: debateRooms[roomId].roles || {},
-      turn: debateRooms[roomId].turn || null
-    });
-  } else {
+  if (!debateRooms[roomId]) {
     console.log(`Room ${roomId} does not exist`);
+    return;
+  }
+  
+  console.log(`Room ${roomId} state:`, {
+    participantCount: debateRooms[roomId].participants.length,
+    participants: debateRooms[roomId].participants.map(p => ({ 
+      socketId: p.socketId.substring(0, 6) + '...', // Truncate for readability
+      userId: p.userId,
+      isReady: p.isReady 
+    })),
+    status: debateRooms[roomId].status || 'unknown',
+    roles: debateRooms[roomId].roles || {},
+    turn: debateRooms[roomId].turn || null
+  });
+};
+
+// Create or initialize a debate room
+const initializeDebateRoom = (debateId) => {
+  if (!debateRooms[debateId]) {
+    debateRooms[debateId] = { 
+      participants: [],
+      roles: {},
+      status: 'waiting'
+    };
+    console.log(`Created new debate room ${debateId}`);
+  }
+  
+  // Ensure participants array exists and is valid
+  if (!debateRooms[debateId].participants || !Array.isArray(debateRooms[debateId].participants)) {
+    console.log(`Resetting participants array for room ${debateId}`);
+    debateRooms[debateId].participants = [];
+  }
+  
+  return debateRooms[debateId];
+};
+
+// Update debate status when a user leaves or disconnects
+const handleUserLeavingDebate = (debateId) => {
+  const room = debateRooms[debateId];
+  
+  // If room is now empty or has only one participant, update debate status to 'open'
+  if (room && room.participants.length <= 1) {
+    // Find the debate in the debates array and update its status
+    const debates = debateRoutes.getDebates();
+    const debateIndex = debates.findIndex(d => d.id === debateId);
+    
+    if (debateIndex !== -1) {
+      debates[debateIndex].status = 'open';
+      console.log(`Updated debate ${debateId} status to 'open'`);
+    }
+  }
+  
+  // Clean up empty rooms
+  if (room && room.participants.length === 0) {
+    delete debateRooms[debateId];
+    console.log(`Deleted empty room ${debateId}`);
   }
 };
 
-// Socket.io connection handling
+// Assign roles to debate participants
+const assignDebateRoles = async (debateId, allParticipants) => {
+  const debateRoom = debateRooms[debateId];
+  
+  try {
+    console.log(`Fetching participant roles from database for debate ${debateId}...`);
+    const { data: participantsData, error } = await supabase
+      .from('debate_participants')
+      .select('user_id, side')
+      .eq('room_id', debateId)
+      .is('left_at', null);
+      
+    if (error) {
+      console.error('Error fetching participant roles from database:', error);
+      throw error;
+    }
+    
+    console.log(`Database participants for ${debateId}:`, JSON.stringify(participantsData));
+    
+    // Map user IDs to their roles from the database
+    const participantRoles = {};
+    participantsData.forEach(p => {
+      if (p.side) { // Only include participants with assigned sides
+        participantRoles[p.user_id] = p.side;
+      }
+    });
+    
+    // Check if we have roles for each participant
+    const participantIds = allParticipants.map(p => p.userId);
+    const missingRoles = participantIds.some(id => !participantRoles[id]);
+    
+    console.log(`Participant IDs in memory:`, JSON.stringify(participantIds));
+    console.log(`Roles from database:`, JSON.stringify(participantRoles));
+    
+    // If roles are incomplete in the database, assign them dynamically
+    if (Object.keys(participantRoles).length < 2 || missingRoles) {
+      console.log('Incomplete role assignments in database, assigning roles dynamically');
+      
+      // Fallback to dynamic assignment
+      debateRoom.roles = {};
+      debateRoom.roles[allParticipants[0].userId] = 'pro';
+      debateRoom.roles[allParticipants[1].userId] = 'con';
+      
+      // Update the roles in the database
+      const updates = [
+        {
+          user_id: allParticipants[0].userId,
+          side: 'pro',
+          room_id: debateId
+        },
+        {
+          user_id: allParticipants[1].userId,
+          side: 'con',
+          room_id: debateId
+        }
+      ];
+      
+      for (const update of updates) {
+        await supabase
+          .from('debate_participants')
+          .update({ side: update.side })
+          .eq('room_id', update.room_id)
+          .eq('user_id', update.user_id)
+          .is('left_at', null);
+      }
+    } else {
+      console.log('Using roles from database:', participantRoles);
+      debateRoom.roles = participantRoles;
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('Error in role assignment:', err);
+    
+    // Fallback to simple role assignment if there's an error
+    debateRoom.roles = {};
+    debateRoom.roles[allParticipants[0].userId] = 'pro';
+    debateRoom.roles[allParticipants[1].userId] = 'con';
+    
+    return true;
+  }
+};
+
+// Start debate after countdown completes
+const startDebateAfterCountdown = (debateId, allParticipants) => {
+  const debateRoom = debateRooms[debateId];
+  
+  // Set first speaking turn
+  debateRoom.turn = 'pro';
+  debateRoom.status = 'debating';
+  
+  // Notify clients that debate has started
+  io.to(debateId).emit('debate_start', { 
+    firstTurn: debateRoom.turn,
+    roles: debateRoom.roles
+  });
+  
+  console.log(`Debate ${debateId} started with roles:`, debateRoom.roles);
+};
+
+//------------------------------------------------------
+// Socket.io Connection Handling
+//------------------------------------------------------
+
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
 
+  //------------------
+  // Room Management
+  //------------------
+  
   // Handle joining a debate room
   socket.on('join_debate', async ({ debateId, userId }) => {
     if (!debateId || !userId) {
@@ -98,21 +252,8 @@ io.on('connection', (socket) => {
     try {
       console.log(`User ${userId} (${socket.id.substring(0, 6)}...) joining debate ${debateId}`);
       
-      // Create room if it doesn't exist
-      if (!debateRooms[debateId]) {
-        debateRooms[debateId] = { 
-          participants: [],
-          roles: {},
-          status: 'waiting'
-        };
-        console.log(`Created new debate room ${debateId}`);
-      }
-      
-      // Ensure participants array exists and is valid
-      if (!debateRooms[debateId].participants || !Array.isArray(debateRooms[debateId].participants)) {
-        console.log(`Resetting participants array for room ${debateId} - was:`, JSON.stringify(debateRooms[debateId].participants));
-        debateRooms[debateId].participants = [];
-      }
+      // Create or initialize room
+      const debateRoom = initializeDebateRoom(debateId);
       
       // Check if user is already in the debate_participants table
       try {
@@ -126,7 +267,6 @@ io.on('connection', (socket) => {
         
         if (queryError && queryError.code !== 'PGRST116') { // PGRST116 is "no rows returned" which is fine
           console.warn('Error checking for existing participant:', queryError);
-          // Continue anyway - this is just a check
         }
         
         // If not found, insert a new record
@@ -142,25 +282,22 @@ io.on('connection', (socket) => {
           
           if (insertError) {
             console.warn('Error inserting participant record:', insertError);
-            // Continue anyway - socket connection can still work
           } else {
             console.log(`Added ${userId} to debate_participants table for debate ${debateId}`);
           }
         }
       } catch (dbError) {
         console.error('Database error while joining debate:', dbError);
-        // Continue anyway - socket connection can still work
       }
       
-      
       // Add user to room
-      debateRooms[debateId].participants.push({
+      debateRoom.participants.push({
         socketId: socket.id,
         userId
       });
-      
+        
       console.log(`Added user ${userId} to room ${debateId}, current participants:`, 
-        JSON.stringify(debateRooms[debateId].participants.map(p => ({
+        JSON.stringify(debateRoom.participants.map(p => ({
           userId: p.userId,
           socketId: p.socketId.substring(0, 6) + '...'
         })))
@@ -172,24 +309,13 @@ io.on('connection', (socket) => {
       // Notify other participants
       socket.to(debateId).emit('user_joined', { userId });
       
-      // If this is the test room, broadcast participant count to all users in that room
-      if (debateId === TEST_ROOM_ID) {
-        // Log current participants for debugging
-        logRoomState(TEST_ROOM_ID);
-        
-        io.to(debateId).emit('participant_count', { 
-          count: debateRooms[debateId].participants.length 
-        });
-      }
-      
-      // If we have two participants, notify the room but don't mark as ready yet
-      if (debateRooms[debateId].participants.length >= 2) {
+      // If we have two participants, notify the room
+      if (debateRoom.participants.length >= 2) {
         console.log(`Two participants in room ${debateId}:`, 
-          debateRooms[debateId].participants.map(p => p.userId));
-          
-        // Don't emit 'debate_ready' here - only emit 'debate_participants_connected'
+          debateRoom.participants.map(p => p.userId));
+        
         io.to(debateId).emit('debate_participants_connected', { 
-          participants: debateRooms[debateId].participants.map(p => p.userId) 
+          participants: debateRoom.participants.map(p => p.userId) 
         });
       }
     } catch (error) {
@@ -198,6 +324,66 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle leaving a debate
+  socket.on('leave_debate', ({ debateId }) => {
+    console.log(`User ${socket.id.substring(0, 6)}... leaving debate ${debateId}`);
+    
+    if (debateRooms[debateId]) {
+      // Find and remove the user from the room
+      const participantIndex = debateRooms[debateId].participants.findIndex(
+        p => p.socketId === socket.id
+      );
+      
+      if (participantIndex !== -1) {
+        // Get the user ID before removing
+        const userId = debateRooms[debateId].participants[participantIndex].userId;
+        
+        // Remove from participants array
+        debateRooms[debateId].participants.splice(participantIndex, 1);
+        
+        // Notify others
+        socket.to(debateId).emit('user_left', { socketId: socket.id, userId });
+        
+        // Update debate status and clean up if needed
+        handleUserLeavingDebate(debateId);
+      }
+    }
+    
+    // Leave socket.io room
+    socket.leave(debateId);
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    console.log(`User disconnected: ${socket.id.substring(0, 6)}...`);
+    
+    // Check all rooms for this socket and clean up
+    Object.keys(debateRooms).forEach(debateId => {
+      const room = debateRooms[debateId];
+      
+      // Check if this socket is in the room
+      const participantIndex = room.participants.findIndex(p => p.socketId === socket.id);
+      
+      if (participantIndex !== -1) {
+        // Get the user ID before removing
+        const userId = room.participants[participantIndex].userId;
+        
+        // Remove from participants
+        room.participants.splice(participantIndex, 1);
+        
+        // Notify others
+        socket.to(debateId).emit('user_left', { socketId: socket.id, userId });
+        
+        // Update debate status and clean up if needed
+        handleUserLeavingDebate(debateId);
+      }
+    });
+  });
+
+  //------------------
+  // WebRTC Signaling
+  //------------------
+  
   // Handle WebRTC signaling: offer
   socket.on('offer', ({ debateId, offer }) => {
     console.log(`Received offer from ${socket.id.substring(0, 6)}... in debate ${debateId}`);
@@ -264,126 +450,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle leaving a debate
-  socket.on('leave_debate', ({ debateId }) => {
-    console.log(`User ${socket.id.substring(0, 6)}... leaving debate ${debateId}`);
-    
-    if (debateRooms[debateId]) {
-      // Find and remove the user from the room
-      const participantIndex = debateRooms[debateId].participants.findIndex(
-        p => p.socketId === socket.id
-      );
-      
-      if (participantIndex !== -1) {
-        // Get the user ID before removing
-        const userId = debateRooms[debateId].participants[participantIndex].userId;
-        
-        // Remove from participants array
-        debateRooms[debateId].participants.splice(participantIndex, 1);
-        
-        // For test room, also clean up userSessions
-        if (debateId === TEST_ROOM_ID && userId) {
-          // Only remove from userSessions if this is the current socket for this user
-          if (userSessions.get(userId) === socket.id) {
-            userSessions.delete(userId);
-          }
-        }
-        
-        // Notify others
-        socket.to(debateId).emit('user_left', { socketId: socket.id, userId });
-      }
-      
-      // If this is the test room, broadcast updated participant count
-      if (debateId === TEST_ROOM_ID) {
-        logRoomState(TEST_ROOM_ID);
-        
-        io.to(debateId).emit('participant_count', { 
-          count: debateRooms[debateId].participants.length 
-        });
-      }
-      
-      // If room is now empty or has only one participant, update debate status to 'open'
-      if (debateId !== TEST_ROOM_ID && debateRooms[debateId].participants.length <= 1) {
-        // Find the debate in the debates array and update its status
-        const debateRoutes = require('./routes/debateRoutes');
-        const debates = debateRoutes.getDebates();
-        const debateIndex = debates.findIndex(d => d.id === debateId);
-        
-        if (debateIndex !== -1) {
-          debates[debateIndex].status = 'open';
-          console.log(`Updated debate ${debateId} status to 'open'`);
-        }
-      }
-      
-      // Clean up empty rooms (except test room)
-      if (debateId !== TEST_ROOM_ID && debateRooms[debateId].participants.length === 0) {
-        delete debateRooms[debateId];
-      }
-    }
-    
-    // Leave socket.io room
-    socket.leave(debateId);
-  });
-
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id.substring(0, 6)}...`);
-    
-    // Check all rooms for this socket and clean up
-    Object.keys(debateRooms).forEach(debateId => {
-      const room = debateRooms[debateId];
-      
-      // Check if this socket is in the room
-      const participantIndex = room.participants.findIndex(p => p.socketId === socket.id);
-      
-      if (participantIndex !== -1) {
-        // Get the user ID before removing
-        const userId = room.participants[participantIndex].userId;
-        
-        // Remove from participants
-        room.participants.splice(participantIndex, 1);
-        
-        // For test room, also clean up userSessions
-        if (debateId === TEST_ROOM_ID && userId) {
-          // Only remove from userSessions if this is the current socket for this user
-          if (userSessions.get(userId) === socket.id) {
-            userSessions.delete(userId);
-          }
-        }
-        
-        // Notify others
-        socket.to(debateId).emit('user_left', { socketId: socket.id, userId });
-        
-        // If this is the test room, broadcast updated participant count
-        if (debateId === TEST_ROOM_ID) {
-          logRoomState(TEST_ROOM_ID);
-          
-          io.to(debateId).emit('participant_count', { 
-            count: room.participants.length 
-          });
-        }
-        
-        // If room is now empty or has only one participant, update debate status to 'open'
-        if (debateId !== TEST_ROOM_ID && room.participants.length <= 1) {
-          // Find the debate in the debates array and update its status
-          const debateRoutes = require('./routes/debateRoutes');
-          const debates = debateRoutes.getDebates();
-          const debateIndex = debates.findIndex(d => d.id === debateId);
-          
-          if (debateIndex !== -1) {
-            debates[debateIndex].status = 'open';
-            console.log(`Updated debate ${debateId} status to 'open' after disconnect`);
-          }
-        }
-        
-        // Clean up empty rooms (except test room)
-        if (debateId !== TEST_ROOM_ID && room.participants.length === 0) {
-          delete debateRooms[debateId];
-        }
-      }
-    });
-  });
-
+  //------------------
+  // Debate Flow Management
+  //------------------
+  
   // Handle user readiness status 
   socket.on('user_ready', ({ debateId, userId, isReady }) => {
     try {
@@ -466,10 +536,18 @@ io.on('connection', (socket) => {
         let count = 5;
         debateRoom.status = 'countdown';
         
+        // IMPORTANT: Save a reference to the participants at the start of the countdown
+        const countdownParticipants = [...debateRoom.participants];
+        console.log(`Saving participants at start of countdown:`, JSON.stringify(countdownParticipants.map(p => ({
+          userId: p.userId,
+          socketId: p.socketId.substring(0, 6) + '...',
+          isReady: p.isReady
+        }))));
+        
         // Send initial countdown event
         io.to(debateId).emit('debate_countdown', { count });
         
-        const countdownInterval = setInterval(() => {
+        const countdownInterval = setInterval(async () => {
           count--;
           
           // Send countdown update
@@ -479,23 +557,64 @@ io.on('connection', (socket) => {
           if (count <= 0) {
             clearInterval(countdownInterval);
             
+            // If participants array is empty, restore it from our saved reference
+            if (!debateRoom.participants || !Array.isArray(debateRoom.participants) || debateRoom.participants.length === 0) {
+              console.log(`Participants array was empty, restoring from saved reference`);
+              debateRoom.participants = countdownParticipants;
+            }
+            
             console.log(`Countdown reached zero for debate ${debateId}, checking participant data...`);
-            console.log(`All participants at this point:`, JSON.stringify(allParticipants));
+            console.log(`All participants at this point:`, JSON.stringify(debateRoom.participants.map(p => ({ 
+              userId: p.userId, 
+              isReady: p.isReady 
+            }))));
             
             // Make sure we have valid participants before trying to assign roles
-            if (!allParticipants || !Array.isArray(allParticipants) || allParticipants.length < 2) {
-              console.error(`Invalid participants data in room ${debateId}`, JSON.stringify(allParticipants));
-              io.to(debateId).emit('debate_error', { 
-                message: 'Cannot start debate: not enough participants'
-              });
-              debateRoom.status = 'waiting';
-              return;
+            if (!debateRoom.participants || !Array.isArray(debateRoom.participants) || debateRoom.participants.length < 2) {
+              console.error(`Invalid participants data in room ${debateId}`, JSON.stringify(debateRoom.participants));
+              
+              // Last resort - try to fetch participants from the database
+              try {
+                console.log(`Attempting to recover participants from database for debate ${debateId}`);
+                const { data: dbParticipants, error } = await supabase
+                  .from('debate_participants')
+                  .select('user_id, side, is_ready')
+                  .eq('room_id', debateId)
+                  .is('left_at', null);
+                
+                if (error) {
+                  console.error(`Error fetching participants from database:`, error);
+                } else if (dbParticipants && dbParticipants.length >= 2) {
+                  console.log(`Recovered ${dbParticipants.length} participants from database`);
+                  
+                  // Reconstruct participants array from database
+                  debateRoom.participants = dbParticipants.map(p => ({
+                    userId: p.user_id,
+                    isReady: p.is_ready,
+                    socketId: `recovered_${p.user_id.substring(0, 6)}` // Create a placeholder socket ID
+                  }));
+                  
+                  console.log(`Reconstructed participants:`, JSON.stringify(debateRoom.participants));
+                } else {
+                  console.error(`Not enough participants found in database:`, dbParticipants);
+                }
+              } catch (dbError) {
+                console.error(`Exception while trying to recover participants:`, dbError);
+              }
+              
+              // Check again if we have enough participants after recovery attempt
+              if (!debateRoom.participants || !Array.isArray(debateRoom.participants) || debateRoom.participants.length < 2) {
+                io.to(debateId).emit('debate_error', { 
+                  message: 'Cannot start debate: not enough participants'
+                });
+                return;
+              }
             }
             
             // Validate that all participants have userId
-            for (let i = 0; i < Math.min(allParticipants.length, 2); i++) {
-              if (!allParticipants[i] || !allParticipants[i].userId) {
-                console.error(`Invalid participant at index ${i} in room ${debateId}`, JSON.stringify(allParticipants[i]));
+            for (let i = 0; i < Math.min(debateRoom.participants.length, 2); i++) {
+              if (!debateRoom.participants[i] || !debateRoom.participants[i].userId) {
+                console.error(`Invalid participant at index ${i} in room ${debateId}`, JSON.stringify(debateRoom.participants[i]));
                 io.to(debateId).emit('debate_error', { 
                   message: 'Cannot start debate: invalid participant data'
                 });
@@ -504,109 +623,19 @@ io.on('connection', (socket) => {
               }
             }
             
-            // Fetch participant roles from the database
-            (async () => {
-              try {
-                console.log(`Fetching participant roles from database for debate ${debateId}...`);
-                const { data: participantsData, error } = await supabase
-                  .from('debate_participants')
-                  .select('user_id, side')
-                  .eq('room_id', debateId)
-                  .is('left_at', null);
-                  
-                if (error) {
-                  console.error('Error fetching participant roles from database:', error);
-                  return;
-                }
-                
-                console.log(`Database participants for ${debateId}:`, JSON.stringify(participantsData));
-                
-                // Map user IDs to their roles from the database
-                const participantRoles = {};
-                participantsData.forEach(p => {
-                  if (p.side) { // Only include participants with assigned sides
-                    participantRoles[p.user_id] = p.side;
-                  }
-                });
-                
-                // Check if we have roles for each participant
-                const participantIds = allParticipants.map(p => p.userId);
-                const missingRoles = participantIds.some(id => !participantRoles[id]);
-                
-                console.log(`Participant IDs in memory:`, JSON.stringify(participantIds));
-                console.log(`Roles from database:`, JSON.stringify(participantRoles));
-                console.log(`Missing roles?`, missingRoles);
-                
-                // If roles are incomplete in the database, assign them
-                if (Object.keys(participantRoles).length < 2 || missingRoles) {
-                  console.log('Incomplete role assignments in database, assigning roles dynamically');
-                  
-                  // Fallback to dynamic assignment if database roles are incomplete
-                  debateRoom.roles = {};
-                  debateRoom.roles[allParticipants[0].userId] = 'pro';
-                  debateRoom.roles[allParticipants[1].userId] = 'con';
-                  
-                  // Update the roles in the database
-                  try {
-                    const updates = [
-                      {
-                        user_id: allParticipants[0].userId,
-                        side: 'pro',
-                        room_id: debateId
-                      },
-                      {
-                        user_id: allParticipants[1].userId,
-                        side: 'con',
-                        room_id: debateId
-                      }
-                    ];
-                    
-                    for (const update of updates) {
-                      await supabase
-                        .from('debate_participants')
-                        .update({ side: update.side })
-                        .eq('room_id', update.room_id)
-                        .eq('user_id', update.user_id)
-                        .is('left_at', null);
-                    }
-                  } catch (err) {
-                    console.error('Error updating roles in database:', err);
-                  }
-                } else {
-                  console.log('Using roles from database:', participantRoles);
-                  debateRoom.roles = participantRoles;
-                }
-                
-                // Set first speaking turn
-                debateRoom.turn = 'pro';
-                debateRoom.status = 'debating';
-                
-                // Notify clients that debate has started
-                io.to(debateId).emit('debate_start', { 
-                  firstTurn: debateRoom.turn,
-                  roles: debateRoom.roles
-                });
-                
-                console.log(`Debate ${debateId} started with roles:`, debateRoom.roles);
-              } catch (err) {
-                console.error('Error in role assignment:', err);
-                
-                // Fallback to simple role assignment if there's an error
-                debateRoom.roles = {};
-                debateRoom.roles[allParticipants[0].userId] = 'pro';
-                debateRoom.roles[allParticipants[1].userId] = 'con';
-                
-                // Set first speaking turn
-                debateRoom.turn = 'pro';
-                debateRoom.status = 'debating';
-                
-                // Notify clients that debate has started
-                io.to(debateId).emit('debate_start', { 
-                  firstTurn: debateRoom.turn,
-                  roles: debateRoom.roles
-                });
-              }
-            })();
+            // Assign roles to participants
+            const rolesAssigned = await assignDebateRoles(debateId, debateRoom.participants);
+            
+            if (rolesAssigned) {
+              // Start the debate
+              startDebateAfterCountdown(debateId, debateRoom.participants);
+            } else {
+              // Handle role assignment failure
+              io.to(debateId).emit('debate_error', { 
+                message: 'Failed to assign debate roles'
+              });
+              debateRoom.status = 'waiting';
+            }
           }
         }, 1000);
       }
@@ -647,8 +676,10 @@ io.on('connection', (socket) => {
   });
 });
 
+//------------------------------------------------------
+// Start Server
+//------------------------------------------------------
 
-// Start server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
