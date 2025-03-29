@@ -251,6 +251,7 @@ const startDebateAfterCountdown = (debateId, allParticipants) => {
   debateRoom.status = 'debating';
   
   console.log(`[DEBATE START] First turn is 'pro' (affirmative)`);
+  console.log(`[DEBATE START] Debate structure: ${JSON.stringify(debateRoom.debateStructure)}`);
   
   // Initialize turn timer with 10 seconds for testing
   debateRoom.turnTimer = setTimeout(() => {
@@ -321,17 +322,19 @@ const handleTurnExpiration = (debateId) => {
       console.log(`[TIMER EXPIRED] Marked turn ${currentTurn} as completed`);
     }
     
-    // CRITICAL FIX: Only check if this is the final turn AFTER we've completed the current turn
-    // Advance to the next position
+    // Log the debate structure before advancing
+    console.log(`[TIMER EXPIRED] Debate structure before advancing: ${JSON.stringify(debateRoom.debateStructure)}`);
+    
+    // CRITICAL: Current turn is done, advance to the next position in the sequence
     debateRoom.debateStructure.currentPosition++;
     const newPosition = debateRoom.debateStructure.currentPosition;
     console.log(`[TIMER EXPIRED] Advanced to position ${newPosition}`);
     
-    // NOW check if we've completed the entire sequence
-    // Position 0 = pro, Position 1 = con, so if we're at position 2, we've completed both turns
+    // Check if we've reached the end of the sequence (both turns done)
     if (newPosition >= debateRoom.debateStructure.turnSequence.length) {
-      // We've completed all turns - end the debate
-      console.log(`[TIMER EXPIRED] All turns completed (position ${newPosition}), ending debate`);
+      // Both turns are completed - end the debate
+      console.log(`[TIMER EXPIRED] DEBATE COMPLETE - All turns completed (position ${newPosition} >= ${debateRoom.debateStructure.turnSequence.length})`);
+      console.log(`[TIMER EXPIRED] Completed turns: ${debateRoom.debateStructure.completedTurns.join(', ')}`);
       
       // Clear any existing timer
       if (debateRoom.turnTimer) {
@@ -367,10 +370,9 @@ const handleTurnExpiration = (debateId) => {
       return;
     }
     
-    // If we get here, we need to move to the next turn
-    // Get the next turn from the sequence
+    // If we're here, we need to set up the next turn
     const newTurn = debateRoom.debateStructure.turnSequence[newPosition];
-    console.log(`[TIMER EXPIRED] Moving to next turn: ${newTurn}`);
+    console.log(`[TIMER EXPIRED] Setting up next turn: '${newTurn}' (position ${newPosition})`);
     
     // Update the current turn
     debateRoom.turn = newTurn;
@@ -887,17 +889,19 @@ io.on('connection', (socket) => {
         console.log(`[TURN COMPLETE] Marked turn ${currentTurn} as completed`);
       }
       
-      // CRITICAL FIX: Only check if this is the final turn AFTER we've completed the current turn
-      // Advance to the next position
+      // Log the debate structure before advancing
+      console.log(`[TURN COMPLETE] Debate structure before advancing: ${JSON.stringify(debateRoom.debateStructure)}`);
+      
+      // CRITICAL: Current turn is done, advance to the next position in the sequence
       debateRoom.debateStructure.currentPosition++;
       const newPosition = debateRoom.debateStructure.currentPosition;
       console.log(`[TURN COMPLETE] Advanced to position ${newPosition}`);
       
-      // NOW check if we've completed the entire sequence
-      // Position 0 = pro, Position 1 = con, so if we're at position 2, we've completed both turns
+      // Check if we've reached the end of the sequence (both turns done)
       if (newPosition >= debateRoom.debateStructure.turnSequence.length) {
-        // We've completed all turns - end the debate
-        console.log(`[TURN COMPLETE] All turns completed (position ${newPosition}), ending debate`);
+        // Both turns are completed - end the debate
+        console.log(`[TURN COMPLETE] DEBATE COMPLETE - All turns completed (position ${newPosition} >= ${debateRoom.debateStructure.turnSequence.length})`);
+        console.log(`[TURN COMPLETE] Completed turns: ${debateRoom.debateStructure.completedTurns.join(', ')}`);
         
         // Clear any existing timer
         if (debateRoom.turnTimer) {
@@ -933,10 +937,9 @@ io.on('connection', (socket) => {
         return;
       }
       
-      // If we get here, we need to move to the next turn
-      // Get the next turn from the sequence
+      // If we're here, we need to set up the next turn
       const newTurn = debateRoom.debateStructure.turnSequence[newPosition];
-      console.log(`[TURN COMPLETE] Moving to next turn: ${newTurn}`);
+      console.log(`[TURN COMPLETE] Setting up next turn: '${newTurn}' (position ${newPosition})`);
       
       // Update the current turn
       debateRoom.turn = newTurn;

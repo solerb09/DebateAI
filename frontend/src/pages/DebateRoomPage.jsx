@@ -103,37 +103,63 @@ const DebateRoomPage = () => {
     // Create socket connection
     socketRef.current = io();
     
-    // Create WebRTC service
-    webrtcServiceRef.current = new WebRTCService(socketRef.current);
-    
-    const userId = getUserId();
-    
-    // Initialize WebRTC service
-    webrtcServiceRef.current.init(debateRoomId, userId);
-    
-    // Set up WebRTC callbacks
-    webrtcServiceRef.current.onRemoteStream((stream) => {
-      if (remoteVideoRef.current && mounted) {
-        remoteVideoRef.current.srcObject = stream;
-      }
-    });
-    
-    webrtcServiceRef.current.onConnectionStateChange((state) => {
-      if (mounted) {
-        setConnectionState(state);
-        
-        // When connection is established, update debate status to 'waiting'
-        if (state === 'connected' && debateStatus === 'connecting') {
-          setDebateStatus('waiting');
+    // Only create WebRTC service once and don't recreate for state changes
+    if (!webrtcServiceRef.current) {
+      console.log('Creating new WebRTC service instance');
+      // Create WebRTC service
+      webrtcServiceRef.current = new WebRTCService(socketRef.current);
+      
+      const userId = getUserId();
+      
+      // Initialize WebRTC service
+      webrtcServiceRef.current.init(debateRoomId, userId);
+      
+      // Set up WebRTC callbacks
+      webrtcServiceRef.current.onRemoteStream((stream) => {
+        if (remoteVideoRef.current && mounted) {
+          remoteVideoRef.current.srcObject = stream;
         }
-        
-        // Handle disconnection
-        if (state === 'disconnected' || state === 'failed' || state === 'closed') {
-          // Show appropriate UI
-          console.log('Peer disconnected or connection failed');
+      });
+      
+      webrtcServiceRef.current.onConnectionStateChange((state) => {
+        if (mounted) {
+          setConnectionState(state);
+          
+          // When connection is established, update debate status to 'waiting'
+          if (state === 'connected' && debateStatus === 'connecting') {
+            setDebateStatus('waiting');
+          }
+          
+          // Handle disconnection
+          if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+            // Show appropriate UI
+            console.log('Peer disconnected or connection failed');
+          }
         }
-      }
-    });
+      });
+      
+      // Start local stream only once
+      const startMedia = async () => {
+        try {
+          const stream = await webrtcServiceRef.current.startLocalStream();
+          if (localVideoRef.current && mounted) {
+            localVideoRef.current.srcObject = stream;
+          }
+          
+          // Join the debate room after media is ready
+          webrtcServiceRef.current.joinDebate();
+        } catch (err) {
+          console.error('Failed to start media:', err);
+          if (mounted) {
+            setError('Failed to access camera or microphone. Please check permissions and try again.');
+          }
+        }
+      };
+      
+      startMedia();
+    } else {
+      console.log('Using existing WebRTC service instance');
+    }
     
     // Socket event listeners for debate structure
     socketRef.current.on('user_joined', ({ userId: joinedUserId }) => {
@@ -210,26 +236,6 @@ const DebateRoomPage = () => {
       turnChangeRequestRef.current = false;
     });
     
-    // Start local stream
-    const startMedia = async () => {
-      try {
-        const stream = await webrtcServiceRef.current.startLocalStream();
-        if (localVideoRef.current && mounted) {
-          localVideoRef.current.srcObject = stream;
-        }
-        
-        // Join the debate room after media is ready
-        webrtcServiceRef.current.joinDebate();
-      } catch (err) {
-        console.error('Failed to start media:', err);
-        if (mounted) {
-          setError('Failed to access camera or microphone. Please check permissions and try again.');
-        }
-      }
-    };
-    
-    startMedia();
-    
     // Update debate status to active
     updateDebateStatus('active');
     
@@ -276,7 +282,7 @@ const DebateRoomPage = () => {
         socketRef.current.off('debate_finished');
       }
     };
-  }, [debateRoomId, loading, error, debateStatus]);
+  }, [debateRoomId, loading, error]); // Remove debateStatus from dependencies to prevent recreation of WebRTC connection
   
   // Update debate status
   const updateDebateStatus = async (status) => {

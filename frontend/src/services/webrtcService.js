@@ -14,6 +14,10 @@ class WebRTCService {
     this.onRemoteStreamCallback = null;
     this.onConnectionStateChangeCallback = null;
     this.isInitiator = false;
+    this.isConnectionEstablished = false; // Add flag to track if connection is established
+    this.reconnectAttempts = 0; // Track reconnection attempts
+    this.maxReconnectAttempts = 3; // Maximum number of reconnection attempts
+    this.lastIceState = null; // Track the last ICE connection state
     
     // Add recording-related properties
     this.localRecorder = null;
@@ -48,6 +52,13 @@ class WebRTCService {
     // Handle incoming offer
     this.socket.on('offer', async ({ offer, from }) => {
       console.log('Received offer from peer', from);
+      
+      // Only handle offer if we don't already have an established connection
+      if (this.isConnectionEstablished && this.peerConnection?.connectionState === 'connected') {
+        console.log('Already have an established connection, ignoring offer');
+        return;
+      }
+      
       await this.handleOffer(offer, from);
     });
 
@@ -67,24 +78,39 @@ class WebRTCService {
     this.socket.on('debate_participants_connected', ({ participants }) => {
       console.log('Both participants are connected, ready for WebRTC:', participants);
       
-      // If we are the first participant, initiate the call
-      if (participants[0] === this.userId) {
-        console.log('I am the initiator, creating offer');
-        this.isInitiator = true;
-        
-        // Add a delay to make sure both peers are ready
-        setTimeout(() => {
-          this.createOffer();
-        }, 1000);
+      // Only initiate connection if we don't already have one established
+      if (!this.isConnectionEstablished) {
+        // If we are the first participant, initiate the call
+        if (participants[0] === this.userId) {
+          console.log('I am the initiator, creating offer');
+          this.isInitiator = true;
+          
+          // Add a delay to make sure both peers are ready
+          setTimeout(() => {
+            this.createOffer();
+          }, 1000);
+        } else {
+          console.log('I am the receiver, waiting for offer');
+        }
       } else {
-        console.log('I am the receiver, waiting for offer');
+        console.log('Connection already established, skipping new connection setup');
       }
     });
     
-    // Handle debate_ready event - called when both users have marked themselves as ready
+    // Listen for debate_ready and other state changes but don't restart connection
     this.socket.on('debate_ready', ({ participants }) => {
       console.log('Debate ready, both participants have indicated readiness:', participants);
-      // No need to do anything here as the DebateRoomPage will handle the UI state
+      // No WebRTC changes needed - keep existing connection
+    });
+    
+    // Listen for debate start but don't restart connection
+    this.socket.on('debate_start', ({ firstTurn, roles }) => {
+      console.log('Debate started, maintaining WebRTC connection');
+    });
+    
+    // Listen for debate finish but don't restart connection
+    this.socket.on('debate_finished', ({ message }) => {
+      console.log('Debate finished, maintaining WebRTC connection');
     });
   }
 
@@ -104,7 +130,14 @@ class WebRTCService {
    */
   setupPeerConnection() {
     if (this.peerConnection) {
-      // Close any existing connection before creating a new one
+      if (this.peerConnection.connectionState === 'connected' || 
+          this.peerConnection.iceConnectionState === 'connected') {
+        console.log('Connection already established, not recreating peer connection');
+        return; // Don't recreate if already connected
+      }
+      
+      // Close existing connection only if it's problematic
+      console.log('Closing existing peer connection with state:', this.peerConnection.connectionState);
       this.peerConnection.close();
     }
     
@@ -112,6 +145,12 @@ class WebRTCService {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
+        // Add TURN servers for better reliability behind NATs
+        {
+          urls: 'turn:global.turn.twilio.com:3478?transport=udp',
+          username: 'anyuser',  // These are placeholders - use actual credentials
+          credential: 'anypass' // in a production environment
+        }
       ]
     };
 
@@ -131,9 +170,29 @@ class WebRTCService {
     
     // Log ICE connection state changes
     this.peerConnection.oniceconnectionstatechange = () => {
-      console.log('ICE connection state:', this.peerConnection.iceConnectionState);
-      if (this.peerConnection.iceConnectionState === 'connected') {
+      const state = this.peerConnection.iceConnectionState;
+      console.log('ICE connection state changed:', state);
+      
+      // Track the state change for reconnection logic
+      this.lastIceState = state;
+      
+      if (state === 'connected' || state === 'completed') {
         console.log('ICE connected - peer connection established');
+        this.isConnectionEstablished = true;
+        this.reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+      } 
+      else if (state === 'disconnected') {
+        console.log('ICE disconnected - may be temporary');
+        // Don't do anything immediate - might recover on its own
+      }
+      else if (state === 'failed') {
+        console.log('ICE connection failed - attempting to recover');
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          console.log(`Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+          // Don't recreate the whole connection - just restart ICE
+          this.peerConnection.restartIce();
+        }
       }
     };
 
@@ -155,6 +214,12 @@ class WebRTCService {
     this.peerConnection.onconnectionstatechange = () => {
       const state = this.peerConnection.connectionState;
       console.log('Connection state changed:', state);
+      
+      if (state === 'connected') {
+        console.log('WebRTC connection established successfully');
+        this.isConnectionEstablished = true;
+      }
+      
       if (this.onConnectionStateChangeCallback) {
         this.onConnectionStateChangeCallback(state);
       }
@@ -243,6 +308,12 @@ class WebRTCService {
    * Capture local media stream (audio and video)
    */
   async startLocalStream() {
+    // If we already have a local stream with active tracks, reuse it
+    if (this.localStream && this.localStream.getTracks().some(track => track.readyState === 'live')) {
+      console.log('Reusing existing local stream');
+      return this.localStream;
+    }
+    
     try {
       const mediaConstraints = {
         audio: true,
@@ -271,6 +342,14 @@ class WebRTCService {
    */
   async createOffer() {
     try {
+      // If we already have an established connection, don't create a new offer
+      if (this.isConnectionEstablished && 
+          (this.peerConnection.connectionState === 'connected' || 
+           this.peerConnection.iceConnectionState === 'connected')) {
+        console.log('Connection already established, not creating new offer');
+        return;
+      }
+      
       console.log('Creating offer');
       
       // Make sure we have tracks added before creating offer
@@ -284,7 +363,8 @@ class WebRTCService {
 
       const offer = await this.peerConnection.createOffer({
         offerToReceiveAudio: true,
-        offerToReceiveVideo: true
+        offerToReceiveVideo: true,
+        iceRestart: true // Enable ICE restart to help with connectivity issues
       });
       
       console.log('Setting local description (offer)');
@@ -444,6 +524,8 @@ class WebRTCService {
       this.socket.off('ice_candidate');
       this.socket.off('debate_ready');
       this.socket.off('debate_participants_connected');
+      this.socket.off('debate_start');
+      this.socket.off('debate_finished');
     }
     
     // Stop any active recordings
@@ -495,6 +577,9 @@ class WebRTCService {
     
     // Reset state
     this.isInitiator = false;
+    this.isConnectionEstablished = false;
+    this.reconnectAttempts = 0;
+    this.lastIceState = null;
   }
 
   /**
