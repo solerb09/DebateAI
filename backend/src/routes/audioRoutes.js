@@ -9,6 +9,12 @@ const path = require('path');
 const fs = require('fs-extra');
 const { v4: uuidv4 } = require('uuid');
 const { OpenAI } = require('openai');
+const { createClient } = require('@supabase/supabase-js');
+
+// Initialize Supabase client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -175,9 +181,46 @@ async function startTranscription(transcriptionId) {
     
     console.log(`Transcription completed for job ${transcriptionId}`);
     
-    // Store the transcription in database or perform additional processing
-    // For now, we're just keeping it in memory
-    
+    // Store the transcription in the database
+    try {
+      // First, try to determine the user's role in the debate
+      const { data: participantData, error: participantError } = await supabase
+        .from('debate_participants')
+        .select('side')
+        .eq('room_id', job.debateId)
+        .eq('user_id', job.userId)
+        .is('left_at', null)
+        .single();
+      
+      // Default role to the streamType if we can't determine it
+      const role = participantData?.side || (job.streamType === 'local' ? 'pro' : 'con');
+      
+      // Store the transcription in the database
+      const { data, error } = await supabase
+        .from('transcriptions')
+        .insert({
+          debate_id: job.debateId,
+          user_id: job.userId,
+          role: role,
+          transcript: transcription.text,
+          audio_file_path: job.filePath,
+          segments: transcription.segments,
+          metadata: {
+            streamType: job.streamType,
+            duration: transcription.duration,
+            wordCount: transcription.text.split(' ').length,
+            transcriptionId
+          }
+        });
+      
+      if (error) {
+        console.error(`Error storing transcription in database:`, error);
+      } else {
+        console.log(`Transcription stored in database for debate ${job.debateId}, user ${job.userId}`);
+      }
+    } catch (dbError) {
+      console.error(`Database error storing transcription:`, dbError);
+    }
   } catch (error) {
     console.error(`Transcription error for job ${transcriptionId}:`, error);
     
@@ -185,5 +228,77 @@ async function startTranscription(transcriptionId) {
     job.error = error.message;
   }
 }
+
+/**
+ * Get all transcriptions for a specific debate
+ */
+router.get('/transcriptions/:debateId', async (req, res) => {
+  try {
+    const { debateId } = req.params;
+    
+    console.log(`[API] Fetching transcriptions for debate: ${debateId}`);
+    
+    if (!debateId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Debate ID is required'
+      });
+    }
+    
+    // Fetch transcriptions from the database
+    const { data, error } = await supabase
+      .from('transcriptions')
+      .select('*, users(display_name, avatar_url)')
+      .eq('debate_id', debateId);
+      
+    if (error) {
+      console.error(`[API] Error fetching transcriptions:`, error);
+      return res.status(500).json({
+        success: false,
+        message: 'Error fetching transcriptions',
+        error: error.message
+      });
+    }
+    
+    // If no transcriptions found, check if any are in progress
+    if (!data || data.length === 0) {
+      // Check for in-progress transcriptions for this debate
+      const pendingJobs = Object.values(transcriptionJobs).filter(
+        job => job.debateId === debateId && job.status !== 'failed'
+      );
+      
+      if (pendingJobs.length > 0) {
+        return res.status(200).json({
+          success: true,
+          message: 'Transcriptions are still being processed',
+          data: [],
+          pending: pendingJobs.length,
+          status: 'processing'
+        });
+      }
+      
+      return res.status(200).json({
+        success: true,
+        message: 'No transcriptions found for this debate',
+        data: []
+      });
+    }
+    
+    console.log(`[API] Found ${data.length} transcriptions for debate ${debateId}`);
+    
+    res.status(200).json({
+      success: true,
+      message: 'Transcriptions retrieved successfully',
+      data
+    });
+  } catch (error) {
+    console.error(`[API] Unexpected error fetching transcriptions:`, error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+});
 
 module.exports = router; 

@@ -350,80 +350,6 @@ const DebateRoomPage = () => {
     });
   };
   
-  // Start debate recording
-  const startRecording = () => {
-    if (!webrtcServiceRef.current) {
-      console.error('WebRTC service not available');
-      return;
-    }
-    
-    try {
-      webrtcServiceRef.current.startRecording();
-      setIsRecording(true);
-      setRecordingStatus('recording');
-      
-      // Start a timer to track recording duration
-      let seconds = 0;
-      recordingTimerRef.current = setInterval(() => {
-        seconds += 1;
-        setRecordingTime(seconds);
-      }, 1000);
-      
-      console.log('Started debate recording');
-    } catch (error) {
-      console.error('Failed to start recording:', error);
-      setRecordingStatus('error');
-    }
-  };
-  
-  // Stop debate recording and upload
-  const stopRecording = async () => {
-    if (!webrtcServiceRef.current || !isRecording) {
-      return;
-    }
-    
-    try {
-      // Stop the recording timer
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
-      }
-      
-      setRecordingStatus('processing');
-      
-      // Stop recording and get audio blobs
-      const recordings = await webrtcServiceRef.current.stopRecording();
-      
-      if (!recordings) {
-        throw new Error('No recordings were captured');
-      }
-      
-      console.log('Recordings obtained:', recordings);
-      
-      // Upload recordings to server
-      setRecordingStatus('uploading');
-      const results = await webrtcServiceRef.current.uploadRecordings(recordings);
-      
-      if (!results) {
-        throw new Error('Failed to upload recordings');
-      }
-      
-      console.log('Upload results:', results);
-      setRecordingStatus('uploaded');
-      setIsRecording(false);
-      
-      // Check if we need to process the debate result
-      if (results.local && results.local.transcriptionId && 
-          results.remote && results.remote.transcriptionId) {
-        console.log('Transcription IDs obtained, debate will be processed');
-      }
-    } catch (error) {
-      console.error('Error in recording process:', error);
-      setRecordingStatus('error');
-      setIsRecording(false);
-    }
-  };
-  
   // Format seconds as MM:SS
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -524,6 +450,112 @@ const DebateRoomPage = () => {
     // Reset the turn change request flag when the speaking turn changes
     turnChangeRequestRef.current = false;
   }, [speakingTurn]);
+  
+  // Add automatic recording based on debate status
+  useEffect(() => {
+    // Start recording when debate begins
+    if (debateStatus === 'debating' && !isRecording && webrtcServiceRef.current) {
+      console.log('Debate started - automatically starting recording');
+      try {
+        webrtcServiceRef.current.startRecording();
+        setIsRecording(true);
+        setRecordingStatus('recording');
+      } catch (error) {
+        console.error('Failed to start automatic recording:', error);
+        setRecordingStatus('error');
+      }
+    }
+    
+    // Stop recording when debate ends
+    if (debateStatus === 'finished' && isRecording && webrtcServiceRef.current) {
+      console.log('Debate ended - automatically stopping recording');
+      const stopAndUploadRecording = async () => {
+        try {
+          // Stop the recording timer if it's running
+          if (recordingTimerRef.current) {
+            clearInterval(recordingTimerRef.current);
+            recordingTimerRef.current = null;
+          }
+          
+          setRecordingStatus('processing');
+          
+          // Stop recording and get the audio blobs
+          const recordings = await webrtcServiceRef.current.stopRecording();
+          
+          // If we have recordings, upload them
+          if (recordings) {
+            console.log('Uploading debate recordings...');
+            setRecordingStatus('uploading');
+            
+            // Upload the recordings to the server
+            const results = await webrtcServiceRef.current.uploadRecordings(recordings);
+            
+            console.log('Debate recordings uploaded:', results);
+            setRecordingStatus('uploaded');
+          }
+          
+          setIsRecording(false);
+        } catch (error) {
+          console.error('Failed to stop and upload automatic recording:', error);
+          setRecordingStatus('error');
+          setIsRecording(false);
+        }
+      };
+      
+      stopAndUploadRecording();
+    }
+  }, [debateStatus, isRecording]);
+  
+  // Add an effect to handle the recording timer
+  useEffect(() => {
+    // Start timer when recording begins
+    if (isRecording && recordingStatus === 'recording') {
+      console.log('Starting recording timer');
+      let seconds = 0;
+      recordingTimerRef.current = setInterval(() => {
+        seconds += 1;
+        setRecordingTime(seconds);
+      }, 1000);
+    }
+    
+    // Clean up timer when recording stops
+    return () => {
+      if (recordingTimerRef.current) {
+        console.log('Clearing recording timer');
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+    };
+  }, [isRecording, recordingStatus]);
+  
+  // Add CSS styles for the recording indicator
+  const styles = {
+    recordingStatusIndicator: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '5px 10px',
+      borderRadius: '4px',
+      margin: '0 5px',
+      fontSize: '14px',
+      fontWeight: 'bold',
+      backgroundColor: 'transparent',
+      color: '#888'
+    },
+    recording: {
+      backgroundColor: 'rgba(255, 0, 0, 0.1)',
+      color: '#ff3333',
+      fontWeight: 'bold'
+    },
+    recordingDot: {
+      display: 'inline-block',
+      width: '10px',
+      height: '10px',
+      borderRadius: '50%',
+      backgroundColor: '#ff3333',
+      marginRight: '5px'
+    }
+  };
   
   if (loading) {
     return <div className="loading">Loading debate room...</div>;
@@ -673,16 +705,23 @@ const DebateRoomPage = () => {
           {isVideoEnabled ? '📹' : '⛔'}
         </button>
         
-        {connectionState === 'connected' && (
-          <button 
-            className={`control-btn ${isRecording ? 'recording' : ''}`}
-            onClick={isRecording ? stopRecording : startRecording}
-            disabled={recordingStatus === 'processing' || recordingStatus === 'uploading'}
-            title={isRecording ? 'Stop Recording' : 'Start Recording'}
-          >
-            {isRecording ? '⏹️' : '⏺️'}
-          </button>
-        )}
+        <div 
+          style={{
+            ...styles.recordingStatusIndicator,
+            ...(isRecording ? styles.recording : {})
+          }}
+          title={isRecording ? 'Recording in progress' : 'Not recording'}
+        >
+          {isRecording && (
+            <>
+              <span
+                style={styles.recordingDot}
+                className="recording-dot"
+              />
+              Recording
+            </>
+          )}
+        </div>
         
         <button 
           className="control-btn btn-danger"
@@ -697,15 +736,14 @@ const DebateRoomPage = () => {
       {recordingStatus !== 'idle' && (
         <div className={`recording-status ${recordingStatus}`}>
           {recordingStatus === 'recording' && (
-            <>
-              <span className="recording-indicator"></span>
-              <span>Recording: {formatTime(recordingTime)}</span>
-            </>
+            <span>
+              Recording debate... {recordingTime > 0 && `(${formatTime(recordingTime)})`}
+            </span>
           )}
           {recordingStatus === 'processing' && <span>Processing recording...</span>}
           {recordingStatus === 'uploading' && <span>Uploading recording... ({uploadProgress}%)</span>}
           {recordingStatus === 'uploaded' && <span>Recording uploaded successfully!</span>}
-          {recordingStatus === 'error' && <span>Recording error. Please try again.</span>}
+          {recordingStatus === 'error' && <span>Recording error occurred</span>}
         </div>
       )}
     </div>
