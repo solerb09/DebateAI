@@ -2,60 +2,36 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../config/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import '../styles/ProfilePage.css'; // Import the new stylesheet
 
 function ProfilePage() {
-  const { user } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [profileData, setProfileData] = useState({
+  const [formData, setFormData] = useState({
     username: '',
-    fullName: '',
     bio: '',
-    avatarUrl: '',
   });
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
-  // Redirect if not logged in
+  // Populate form with data
   useEffect(() => {
-    if (!user) {
-      navigate('/login');
-    } else {
-      fetchProfile();
-    }
-  }, [user, navigate]);
-
-  const fetchProfile = async () => {
-    try {
-      setLoading(true);
-      
-      // Get profile data from users table
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-      
-      if (error) throw error;
-      
-      // Set profile data
-      setProfileData({
-        username: data?.username || user.user_metadata?.username || '',
-        fullName: data?.full_name || '',
-        bio: data?.bio || '',
+    if (user) {
+      setFormData({
+        username: profile?.username || user?.user_metadata?.username || '',
+        bio: profile?.bio || '',
       });
-
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    } finally {
       setLoading(false);
+    } else {
+      navigate('/login');
     }
-  };
+  }, [user, profile, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setProfileData(prev => ({
+    setFormData(prev => ({
       ...prev,
       [name]: value
     }));
@@ -72,9 +48,9 @@ function ProfilePage() {
       const { error } = await supabase
         .from('users')
         .update({
-          username: profileData.username,
-          bio: profileData.bio,
-          updated_at: new Date()
+          username: formData.username,
+          bio: formData.bio,
+          updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
       
@@ -82,7 +58,7 @@ function ProfilePage() {
       
       // Update user metadata
       const { error: metadataError } = await supabase.auth.updateUser({
-        data: { username: profileData.username }
+        data: { username: formData.username }
       });
       
       if (metadataError) throw metadataError;
@@ -90,8 +66,8 @@ function ProfilePage() {
       setSuccess('Profile updated successfully!');
       setEditing(false);
       
-      // Refresh profile data
-      await fetchProfile();
+      // Refresh profile data in context
+      refreshProfile();
       
     } catch (error) {
       setError(error.message);
@@ -101,94 +77,101 @@ function ProfilePage() {
     }
   };
 
-  if (loading && !profileData.username) {
-    return <div className="home-container">Loading profile...</div>;
+  if (loading && !profile) {
+    return <div className="profile-container">Loading profile...</div>;
   }
 
   return (
-    <div className="home-container">
-      <div className="welcome-section">
-        <div className="profile-header">
-          <h1>My Profile</h1>
-          {!editing && (
-            <button 
-              onClick={() => setEditing(true)}
-              className="edit-button"
-            >
-              Edit Profile
-            </button>
-          )}
-        </div>
-        
-        {error && <div className="error-message">{error}</div>}
-        {success && <div className="success-message">{success}</div>}
-        
-        {editing ? (
-          <form onSubmit={handleSubmit} className="profile-form">
-            <div className="form-group">
-              <label htmlFor="username">Username</label>
-              <input
-                type="text"
-                id="username"
-                name="username"
-                value={profileData.username}
-                onChange={handleChange}
-                required
-              />
-            </div>
-            
-            
-            <div className="form-group">
-              <label htmlFor="bio">Bio</label>
-              <textarea
-                id="bio"
-                name="bio"
-                value={profileData.bio}
-                onChange={handleChange}
-                rows="4"
-              />
-            </div>
-            
-            <div className="profile-actions">
-              <button 
-                type="submit" 
-                className="save-button"
-                disabled={loading}
-              >
-                {loading ? 'Saving...' : 'Save Changes'}
-              </button>
-              <button 
-                type="button"
-                onClick={() => {
-                  setEditing(false);
-                  fetchProfile(); // Reset form data
-                }}
-                className="cancel-button"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div className="profile-info">
-            <div className="profile-section">
-              <h2>Username</h2>
-              <p>{profileData.username || "Not set"}</p>
-            </div>
-            
-            
-            <div className="profile-section">
-              <h2>Bio</h2>
-              <p>{profileData.bio || "No bio provided."}</p>
-            </div>
-            
-            <div className="profile-section">
-              <h2>Email</h2>
-              <p>{user.email}</p>
-            </div>
-          </div>
+    <div className="profile-container">
+      <div className="profile-header">
+        <h1>My Profile</h1>
+        {!editing && (
+          <button 
+            onClick={() => setEditing(true)}
+            className="edit-button"
+          >
+            Edit Profile
+          </button>
         )}
       </div>
+      
+      {error && <div className="error-message">{error}</div>}
+      {success && <div className="success-message">{success}</div>}
+      
+      {editing ? (
+        <form onSubmit={handleSubmit} className="profile-form">
+          <div className="form-group">
+            <label htmlFor="username">Username</label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              value={formData.username}
+              onChange={handleChange}
+              required
+            />
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="bio">Bio</label>
+            <textarea
+              id="bio"
+              name="bio"
+              value={formData.bio}
+              onChange={handleChange}
+              rows="4"
+              placeholder="Tell us about yourself..."
+            />
+          </div>
+          
+          <div className="profile-actions">
+            <button 
+              type="submit" 
+              className="save-button"
+              disabled={loading}
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+            <button 
+              type="button"
+              onClick={() => {
+                setEditing(false);
+                setFormData({
+                  username: profile?.username || user?.user_metadata?.username || '',
+                  bio: profile?.bio || '',
+                });
+              }}
+              className="cancel-button"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="profile-info">
+          <div className="profile-section">
+            <h2>Username</h2>
+            <p>{profile?.username || user?.user_metadata?.username || "Not set"}</p>
+          </div>
+          
+          <div className="profile-section">
+            <h2>Bio</h2>
+            <p>{profile?.bio || "No bio provided."}</p>
+          </div>
+          
+          <div className="profile-section">
+            <h2>Email</h2>
+            <p>{user?.email}</p>
+          </div>
+          
+          <div className="profile-section">
+            <h2>Account Created</h2>
+            <p>{profile?.created_at 
+              ? new Date(profile.created_at).toLocaleDateString() 
+              : new Date(user?.created_at).toLocaleDateString()}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

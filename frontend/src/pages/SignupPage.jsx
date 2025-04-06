@@ -101,7 +101,7 @@ function SignupPage() {
         }
         
         // Handle successful signup
-        navigate('/', { 
+        navigate('/login', { 
           state: { message: 'Registration successful! Please check your email to confirm your account.' }
         });
       } catch (error) {
