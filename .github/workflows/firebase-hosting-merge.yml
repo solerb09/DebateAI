@@ -18,6 +18,11 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: '20'
+          
+      - name: Inject Supabase Environment Variables
+        run: |
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" >> frontend/.env
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> frontend/.env
 
       - name: Build Vite React App
         run: |
