@@ -86,4 +86,8 @@ router.delete('/:id', (req, res) => {
   res.status(204).send();
 });
 
-module.exports = router; 
+// Export the debates array for access from other modules
+const getDebates = () => debates;
+
+module.exports = router;
+module.exports.getDebates = getDebates; 

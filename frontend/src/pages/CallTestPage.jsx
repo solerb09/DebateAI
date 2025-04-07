@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import WebRTCService from '../services/webrtcService';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * CallTestPage component - simplified test page for WebRTC functionality
@@ -9,6 +10,7 @@ import WebRTCService from '../services/webrtcService';
 const CallTestPage = () => {
   const TEST_ROOM_ID = 'test-call-room'; // Fixed room ID for testing
   const navigate = useNavigate();
+  const { authState } = useAuth();
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -22,11 +24,17 @@ const CallTestPage = () => {
   const socketRef = useRef(null);
   const webrtcServiceRef = useRef(null);
   
-  // Get user ID from localStorage or generate a new one
+  // Get actual user ID from authentication context
   const getUserId = () => {
+    // If user is authenticated, use the actual user ID
+    if (authState.isAuthenticated && authState.user) {
+      return authState.user.id;
+    }
+    
+    // Fallback to localStorage for backward compatibility or guest users
     let userId = localStorage.getItem('userId');
     if (!userId) {
-      userId = 'user_' + Math.random().toString(36).substring(2, 9);
+      userId = 'guest_' + Math.random().toString(36).substring(2, 9);
       localStorage.setItem('userId', userId);
     }
     return userId;
@@ -57,6 +65,17 @@ const CallTestPage = () => {
     
     const setupConnection = async () => {
       try {
+        // Clean up any existing connections first
+        if (webrtcServiceRef.current) {
+          webrtcServiceRef.current.leaveDebate();
+          webrtcServiceRef.current = null;
+        }
+        
+        if (socketRef.current) {
+          socketRef.current.disconnect();
+          socketRef.current = null;
+        }
+        
         // Create socket connection
         socketRef.current = io();
         console.log('Socket.io connection established');
@@ -160,6 +179,16 @@ const CallTestPage = () => {
   
   // Refresh page to try again
   const refreshPage = () => {
+    // Clean up resources before reloading
+    if (webrtcServiceRef.current) {
+      webrtcServiceRef.current.leaveDebate();
+    }
+    
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+    }
+    
+    // Reload the page
     window.location.reload();
   };
   

@@ -168,6 +168,7 @@ export const AuthProvider = ({ children }) => {
       isMounted.current = false;
       if (authSubscription) {
         authSubscription.unsubscribe();
+
       }
     };
   }, []);
@@ -194,6 +195,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await supabase.auth.signOut();
+
       if (isMounted.current) {
         safeSetAuthState({ user: null, profile: null, isAuthenticated: false, loading: false });
       }
@@ -274,6 +276,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       console.error("Error refreshing profile:", error);
+
     }
   };
 

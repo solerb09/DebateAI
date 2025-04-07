@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../supabaseClient';
 
 /**
  * CreateDebatePage component - form to create a new debate topic
@@ -7,15 +9,50 @@ import { useNavigate } from 'react-router-dom';
 const CreateDebatePage = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const { authState } = useAuth();
 
-  // Generate a simple user ID if not already set
+  // Fetch categories on component mount
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('categories')
+          .select('*')
+          .order('name');
+          
+        if (error) {
+          console.error('Error fetching categories:', error);
+          return;
+        }
+        
+        setCategories(data || []);
+        if (data && data.length > 0) {
+          setCategoryId(data[0].id);
+        }
+      } catch (err) {
+        console.error('Failed to fetch categories:', err);
+      }
+    };
+    
+    fetchCategories();
+  }, []);
+
+  // Get actual user ID from authentication context
   const getUserId = () => {
+    // If user is authenticated, use the actual user ID
+    if (authState.isAuthenticated && authState.user) {
+      return authState.user.id;
+    }
+    
+    // Fallback to localStorage for backward compatibility or guest users
     let userId = localStorage.getItem('userId');
     if (!userId) {
-      userId = 'user_' + Math.random().toString(36).substring(2, 9);
+      userId = 'guest_' + Math.random().toString(36).substring(2, 9);
       localStorage.setItem('userId', userId);
     }
     return userId;
@@ -33,26 +70,36 @@ const CreateDebatePage = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/debates', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      // Create debate topic in the database
+      const { data: topicData, error: topicError } = await supabase
+        .from('debate_topics')
+        .insert({
           title,
           description,
-          creator: getUserId(),
-        }),
-      });
+          creator_id: getUserId(),
+          category_id: categoryId
+        })
+        .select();
       
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+      if (topicError) {
+        throw new Error(topicError.message);
       }
       
-      const newDebate = await response.json();
+      // Create a debate room for this topic
+      const { data: roomData, error: roomError } = await supabase
+        .from('debate_rooms')
+        .insert({
+          topic_id: topicData[0].id,
+          status: 'waiting'
+        })
+        .select();
+        
+      if (roomError) {
+        throw new Error(roomError.message);
+      }
       
       // Redirect to the newly created debate room
-      navigate(`/debates/${newDebate.id}`);
+      navigate(`/debates/${roomData[0].id}`);
     } catch (err) {
       console.error('Failed to create debate:', err);
       setError('Failed to create debate. Please try again.');
@@ -83,6 +130,26 @@ const CreateDebatePage = () => {
               placeholder="e.g., Should AI be regulated?"
               required
             />
+          </div>
+          
+          <div className="form-group">
+            <label htmlFor="category">Category</label>
+            <select
+              id="category"
+              className="form-control"
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              required
+            >
+              {categories.length === 0 && (
+                <option value="">Loading categories...</option>
+              )}
+              {categories.map(category => (
+                <option key={category.id} value={category.id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
           </div>
           
           <div className="form-group">

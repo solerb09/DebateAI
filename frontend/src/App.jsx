@@ -13,6 +13,7 @@ import { AuthContext, AuthProvider } from './contexts/AuthContext';
 import ProfilePage from './pages/ProfilePage';
 
 function ProtectedRoute({ children }) {
+
   const auth = useContext(AuthContext);
   
   // For debugging - see what properties are available
