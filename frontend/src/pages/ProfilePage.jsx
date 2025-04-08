@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../config/supabaseClient';
+import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/ProfilePage.css'; // Import the new stylesheet
 
