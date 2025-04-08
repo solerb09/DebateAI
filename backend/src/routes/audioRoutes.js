@@ -304,10 +304,11 @@ router.get('/transcriptions/:debateId', async (req, res) => {
       });
     }
     
-    // Fetch transcriptions from the database
+    // Fetch transcriptions from the database without joining user data
+    // This avoids the column name mismatch error
     const { data, error } = await supabase
       .from('transcriptions')
-      .select('*, users(display_name, avatar_url)')
+      .select('*')
       .eq('debate_id', debateId);
       
     if (error) {
@@ -317,6 +318,35 @@ router.get('/transcriptions/:debateId', async (req, res) => {
         message: 'Error fetching transcriptions',
         error: error.message
       });
+    }
+    
+    // If we successfully got transcriptions, let's enrich them with user data if needed
+    if (data && data.length > 0) {
+      // Get unique user IDs from transcriptions
+      const userIds = [...new Set(data.map(t => t.user_id))];
+      
+      // Fetch user data for those IDs if there are any
+      if (userIds.length > 0) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('id, email, full_name')
+          .in('id', userIds);
+          
+        if (!userError && userData) {
+          // Create a map of user ID to user data for quick lookup
+          const userMap = {};
+          userData.forEach(user => {
+            userMap[user.id] = user;
+          });
+          
+          // Add user data to each transcription
+          data.forEach(transcription => {
+            transcription.user = userMap[transcription.user_id] || null;
+          });
+        } else if (userError) {
+          console.warn(`[API] Could not fetch user data: ${userError.message}`);
+        }
+      }
     }
     
     // If no transcriptions found, check if any are in progress

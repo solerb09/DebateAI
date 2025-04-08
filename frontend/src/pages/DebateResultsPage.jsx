@@ -59,7 +59,7 @@ const DebateResultsPage = () => {
                 console.log(`[RESULTS] Transcription ${index + 1}:`);
                 console.log(`[RESULTS] - Role: ${transcript.role}`);
                 console.log(`[RESULTS] - User ID: ${transcript.user_id}`);
-                console.log(`[RESULTS] - User Name: ${transcript.users?.display_name || 'Unknown'}`);
+                console.log(`[RESULTS] - User Name: ${transcript.user?.full_name || transcript.user?.email || 'Unknown'}`);
                 console.log(`[RESULTS] - Transcript Length: ${transcript.transcript?.length || 0} chars`);
                 console.log(`[RESULTS] - Created: ${new Date(transcript.created_at).toLocaleString()}`);
               });
@@ -83,28 +83,28 @@ const DebateResultsPage = () => {
               console.warn("[RESULTS] No transcription data found:", responseData);
               debugData.noTranscriptionsReason = "No data in response or empty data array";
               
-              // Use mock scores if no transcriptions are found
-              console.log(`[RESULTS] Using mock scores due to missing transcriptions`);
-              setScores({ ai: 86, human: 72 });
-              setWinner('AI');
+              // Set empty transcriptions array, no mock data
+              setTranscriptions([]);
+              setScores({ ai: 0, human: 0 });
+              setWinner(null);
             }
           } else {
             console.warn("[RESULTS] Error fetching transcriptions:", responseData);
             debugData.transcriptionError = responseData;
             
-            // Use mock scores if transcription fetch fails
-            console.log(`[RESULTS] Using mock scores due to fetch error`);
-            setScores({ ai: 86, human: 72 });
-            setWinner('AI');
+            // Set empty transcriptions array, no mock data
+            setTranscriptions([]);
+            setScores({ ai: 0, human: 0 });
+            setWinner(null);
           }
         } catch (transcriptError) {
           console.warn('[RESULTS] Error fetching transcription data:', transcriptError);
           debugData.transcriptionException = transcriptError.toString();
           
-          // Use mock scores if transcription fetch fails
-          console.log(`[RESULTS] Using mock scores due to exception`);
-          setScores({ ai: 86, human: 72 });
-          setWinner('AI');
+          // Set empty transcriptions array, no mock data
+          setTranscriptions([]);
+          setScores({ ai: 0, human: 0 });
+          setWinner(null);
         }
         
         setDebugInfo(debugData);
@@ -155,26 +155,25 @@ const DebateResultsPage = () => {
           human: conScore
         });
         
+        // Mock winner declaration - this will be replaced with real AI evaluation later
         const winnerName = proScore > conScore ? 'AI' : 'Human';
         setWinner(winnerName);
         console.log(`[RESULTS] Scores calculated - Pro: ${proScore}, Con: ${conScore}`);
         console.log(`[RESULTS] Winner determined: ${winnerName}`);
       } else {
-        console.warn("[RESULTS] Missing either pro or con transcription, using default scores");
-        
-        // Use default scores
-        setScores({ ai: 86, human: 72 });
-        setWinner('AI');
+        // For now, we won't set a mock winner if we don't have both transcripts
+        console.warn("[RESULTS] Missing either pro or con transcription, no scores calculated");
+        setScores({ ai: 0, human: 0 });
+        setWinner(null);
       }
     } catch (error) {
       console.error('[RESULTS] Error processing transcription data:', error);
-      // Keep default values
-      setScores({ ai: 86, human: 72 });
-      setWinner('AI');
+      setScores({ ai: 0, human: 0 });
+      setWinner(null);
     }
   };
   
-  // Extract key points from transcriptions
+  // Extract key points from the transcription
   const getKeyPoints = (role) => {
     try {
       // Find the transcription for this role
@@ -197,38 +196,14 @@ const DebateResultsPage = () => {
         
         console.log(`[TRANSCRIPTION] Extracted ${extractedPoints.length} key points for ${role}`);
         
-        if (extractedPoints.length >= 3) {
-          return extractedPoints;
-        }
+        return extractedPoints;
       }
       
-      // Fallback to mock data
-      console.log(`[TRANSCRIPTION] Using default key points for ${role}`);
-      return getDefaultKeyPoints(role);
+      // If no transcript available, return empty array - no fallback to mock data
+      return [];
     } catch (error) {
       console.error(`[TRANSCRIPTION] Error getting key points for ${role}:`, error);
-      return getDefaultKeyPoints(role);
-    }
-  };
-  
-  // Default key points if real data is not available
-  const getDefaultKeyPoints = (role) => {
-    if (role === 'pro') {
-      return [
-        "Advancements in AI can significantly improve efficiency and productivity across various industries.",
-        "AI has the potential to solve complex problems faster than humans.",
-        "Ethical AI development can ensure that technology benefits society.",
-        "Machine learning allows AI to continuously improve and adapt.",
-        "AI can augment human capabilities without replacing jobs."
-      ];
-    } else {
-      return [
-        "Human intuition and creativity are irreplaceable in decision-making processes.",
-        "Relying too heavily on AI could lead to unintended consequences.",
-        "Ethical concerns around AI are difficult to address effectively.",
-        "Human oversight is necessary to ensure AI systems are aligned with societal values.",
-        "Jobs and industries could be disrupted by AI, leading to economic inequality."
-      ];
+      return [];
     }
   };
   
@@ -238,15 +213,15 @@ const DebateResultsPage = () => {
     if (transcriptions.length > 0) {
       if (role === 'pro') {
         const proTranscription = transcriptions.find(t => t.role === 'pro');
-        return proTranscription?.users?.display_name || 'AI';
+        return proTranscription?.user?.full_name || proTranscription?.user?.email || 'Pro Speaker';
       } else {
         const conTranscription = transcriptions.find(t => t.role === 'con');
-        return conTranscription?.users?.display_name || 'Human';
+        return conTranscription?.user?.full_name || conTranscription?.user?.email || 'Con Speaker';
       }
     }
     
-    // Default titles
-    return role === 'pro' ? 'AI' : 'Human';
+    // Default titles if no transcriptions
+    return role === 'pro' ? 'Pro Speaker' : 'Con Speaker';
   };
   
   if (loading) {
@@ -275,29 +250,50 @@ const DebateResultsPage = () => {
         </div>
       )}
       
-      <div className="results-container">
-        <div className="result-card">
-          <h2>{getSideTitle('pro')}</h2>
-          <div className="score">{scores.ai}</div>
-          <h3>Key Points</h3>
-          <ul className="key-points">
-            {getKeyPoints('pro').map((point, index) => (
-              <li key={index}>{point}</li>
-            ))}
-          </ul>
+      {transcriptions.length > 0 ? (
+        <div className="results-container">
+          <div className="result-card">
+            <h2>{getSideTitle('pro')}</h2>
+            {scores.ai > 0 && <div className="score">{scores.ai}</div>}
+            
+            {getKeyPoints('pro').length > 0 ? (
+              <>
+                <h3>Key Points</h3>
+                <ul className="key-points">
+                  {getKeyPoints('pro').map((point, index) => (
+                    <li key={index}>{point}</li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p>No transcript available for the Pro side.</p>
+            )}
+          </div>
+          
+          <div className="result-card">
+            <h2>{getSideTitle('con')}</h2>
+            {scores.human > 0 && <div className="score">{scores.human}</div>}
+            
+            {getKeyPoints('con').length > 0 ? (
+              <>
+                <h3>Key Points</h3>
+                <ul className="key-points">
+                  {getKeyPoints('con').map((point, index) => (
+                    <li key={index}>{point}</li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p>No transcript available for the Con side.</p>
+            )}
+          </div>
         </div>
-        
-        <div className="result-card">
-          <h2>{getSideTitle('con')}</h2>
-          <div className="score">{scores.human}</div>
-          <h3>Key Points</h3>
-          <ul className="key-points">
-            {getKeyPoints('con').map((point, index) => (
-              <li key={index}>{point}</li>
-            ))}
-          </ul>
+      ) : (
+        <div className="no-transcriptions-message" style={{ textAlign: 'center', margin: '2rem 0' }}>
+          <h3>No transcriptions available for this debate</h3>
+          <p>Transcriptions will appear here once the debate is completed and recordings are processed.</p>
         </div>
-      </div>
+      )}
       
       <div className="actions">
         <Link to="/debates" className="btn">

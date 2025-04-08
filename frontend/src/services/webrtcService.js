@@ -21,10 +21,11 @@ class WebRTCService {
     
     // Add recording-related properties
     this.localRecorder = null;
-    this.remoteRecorder = null;
     this.localAudioChunks = [];
-    this.remoteAudioChunks = [];
-    this.isRecording = false;
+    
+    // Media control flags
+    this.isAudioEnabled = true;
+    this.isVideoEnabled = true;
   }
 
   /**
@@ -288,12 +289,12 @@ class WebRTCService {
       
       this.remoteRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          this.remoteAudioChunks.push(event.data);
+          this.localAudioChunks.push(event.data);
         }
       };
       
       this.remoteRecorder.onstop = () => {
-        console.log('Remote recording stopped, chunks collected:', this.remoteAudioChunks.length);
+        console.log('Remote recording stopped, chunks collected:', this.localAudioChunks.length);
       };
       
       // Start recording remote audio with 1-second chunks
@@ -531,21 +532,19 @@ class WebRTCService {
     // Stop any active recordings
     if (this.isRecording) {
       if (this.localRecorder && this.localRecorder.state !== 'inactive') {
-        this.localRecorder.stop();
-      }
-      
-      if (this.remoteRecorder && this.remoteRecorder.state !== 'inactive') {
-        this.remoteRecorder.stop();
+        try {
+          this.localRecorder.stop();
+        } catch (e) {
+          console.error('Error stopping local recorder:', e);
+        }
       }
       
       this.isRecording = false;
+      this.localRecorder = null;
+      this.localAudioChunks = [];
     }
     
     // Clean up recorder objects
-    this.localRecorder = null;
-    this.remoteRecorder = null;
-    this.localAudioChunks = [];
-    this.remoteAudioChunks = [];
     
     // Stop all tracks in the local stream
     if (this.localStream) {
@@ -583,7 +582,7 @@ class WebRTCService {
   }
 
   /**
-   * Start recording both local and remote audio streams
+   * Start audio recording
    */
   startRecording() {
     if (this.isRecording) {
@@ -592,7 +591,6 @@ class WebRTCService {
     }
 
     this.localAudioChunks = [];
-    this.remoteAudioChunks = [];
     
     // Set up local audio recording if we have a local stream
     if (this.localStream) {
@@ -625,39 +623,6 @@ class WebRTCService {
       }
     } else {
       console.warn('No local stream available for recording');
-    }
-    
-    // Set up remote audio recording if we have a remote stream
-    if (this.remoteStream) {
-      // Create a new audio-only stream from the remote stream's audio tracks
-      const remoteAudioStream = new MediaStream(this.remoteStream.getAudioTracks());
-      
-      const options = {
-        mimeType: 'audio/webm',
-        audioBitsPerSecond: 128000
-      };
-      
-      try {
-        this.remoteRecorder = new MediaRecorder(remoteAudioStream, options);
-        
-        this.remoteRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            this.remoteAudioChunks.push(event.data);
-          }
-        };
-        
-        this.remoteRecorder.onstop = () => {
-          console.log('Remote recording stopped, chunks collected:', this.remoteAudioChunks.length);
-        };
-        
-        // Start recording remote audio with 1-second chunks
-        this.remoteRecorder.start(1000);
-        console.log('Started remote audio recording');
-      } catch (error) {
-        console.error('Failed to start remote recording:', error);
-      }
-    } else {
-      console.warn('No remote stream available for recording yet');
     }
     
     this.isRecording = true;
@@ -703,27 +668,6 @@ class WebRTCService {
         };
         
         this.localRecorder.stop();
-      }
-      
-      // Stop remote recording if active
-      if (this.remoteRecorder && this.remoteRecorder.state !== 'inactive') {
-        pendingStops++;
-        
-        this.remoteRecorder.onstop = () => {
-          console.log('Remote recording stopped');
-          
-          // Create a single blob from all chunks
-          const remoteAudioBlob = new Blob(this.remoteAudioChunks, { type: 'audio/webm' });
-          recordings.remote = {
-            blob: remoteAudioBlob,
-            url: URL.createObjectURL(remoteAudioBlob),
-            size: remoteAudioBlob.size
-          };
-          
-          checkComplete();
-        };
-        
-        this.remoteRecorder.stop();
       }
       
       // If no recorders were active, resolve immediately
@@ -772,34 +716,45 @@ class WebRTCService {
       }
     }
     
-    // Upload remote recording if available
-    if (recordings.remote) {
-      try {
-        const formData = new FormData();
-        formData.append('audio', recordings.remote.blob, 'remote-audio.webm');
-        formData.append('debateId', this.debateId);
-        formData.append('userId', this.userId);
-        formData.append('streamType', 'remote');
-        
-        console.log('Uploading remote recording...');
-        const response = await fetch('/api/audio/upload', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (response.ok) {
-          results.remote = await response.json();
-          console.log('Remote recording uploaded successfully');
-        } else {
-          throw new Error(`Server responded with ${response.status}`);
+    return results;
+  }
+
+  resetConnection() {
+    console.log('Resetting WebRTC connection');
+    
+    // Clean up recording
+    if (this.isRecording) {
+      if (this.localRecorder && this.localRecorder.state !== 'inactive') {
+        try {
+          this.localRecorder.stop();
+        } catch (e) {
+          console.error('Error stopping local recorder:', e);
         }
-      } catch (error) {
-        console.error('Failed to upload remote recording:', error);
-        results.remote = { error: error.message };
       }
+      
+      this.isRecording = false;
+      this.localRecorder = null;
+      this.localAudioChunks = [];
     }
     
-    return results;
+    // Close peer connection
+    if (this.peerConnection) {
+      try {
+        this.peerConnection.close();
+      } catch (err) {
+        console.error('Error closing peer connection:', err);
+      }
+      this.peerConnection = null;
+    }
+    
+    // Release media streams
+    if (this.localStream) {
+      this.stopMediaTracks(this.localStream);
+      this.localStream = null;
+    }
+    
+    // We don't stop remote stream tracks as they're managed by the peer connection
+    this.remoteStream = null;
   }
 }
 

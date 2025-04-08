@@ -61,6 +61,12 @@ function App() {
                 </ProtectedRoute>
               } />
               
+              <Route path="/debates/:id/results" element={
+                <ProtectedRoute>
+                  <DebateResultsPage />
+                </ProtectedRoute>
+              } />
+              
               <Route path="/profile" element={
                 <ProtectedRoute>
                   <ProfilePage />
