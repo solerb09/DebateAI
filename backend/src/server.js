@@ -355,7 +355,7 @@ const handleTurnExpiration = (debateId) => {
         try {
           const { error } = await supabase
             .from('debate_rooms')
-            .update({ status: 'closed', ended_at: new Date().toISOString() })
+            .update({ status: 'completed', ended_at: new Date().toISOString() })
             .eq('id', debateId);
             
           if (error) {
@@ -418,7 +418,10 @@ io.on('connection', (socket) => {
   socket.on('join_debate', async ({ debateId, userId }) => {
     if (!debateId || !userId) {
       console.error('Join debate rejected: Missing required information');
-      socket.emit('debate_error', { message: 'Missing debate ID or user ID' });
+      socket.emit('debate_error', { 
+        code: 'MISSING_INFO',
+        message: 'Missing debate ID or user ID' 
+      });
       return;
     }
 
@@ -427,6 +430,52 @@ io.on('connection', (socket) => {
       
       // Create or initialize room
       const debateRoom = initializeDebateRoom(debateId);
+      
+      // Check if this user is already in the room (same user connecting from a different tab/window)
+      const existingUserIndex = debateRoom.participants.findIndex(p => p.userId.toString() === userId.toString());
+      if (existingUserIndex >= 0) {
+        console.log(`User ${userId} is already in debate ${debateId} with socket ID ${debateRoom.participants[existingUserIndex].socketId.substring(0, 6)}...`);
+        socket.emit('debate_error', { 
+          code: 'USER_ALREADY_IN_DEBATE',
+          message: 'You are already participating in this debate in another window or tab.' 
+        });
+        return;
+      }
+      
+      // Check if we already have 2 participants
+      if (debateRoom.participants.length >= 2) {
+        console.log(`Debate room ${debateId} is full, cannot add user ${userId}`);
+        socket.emit('debate_error', { 
+          code: 'DEBATE_ROOM_FULL',
+          message: 'This debate already has two participants. Please join a different debate.' 
+        });
+        return;
+      }
+      
+      // Get debate room information to check if this user created the debate
+      try {
+        const { data: roomData, error: roomError } = await supabase
+          .from('debate_rooms')
+          .select('creator_id')
+          .eq('id', debateId)
+          .single();
+        
+        if (!roomError && roomData) {
+          // Prevent user from joining their own debate (if user ID matches creator_id)
+          // Normalize the strings for comparison to handle potential format differences
+          if (roomData.creator_id && roomData.creator_id.toString() === userId.toString()) {
+            console.log(`User ${userId} attempted to join their own debate ${debateId}`);
+            socket.emit('debate_error', { 
+              code: 'CANNOT_JOIN_OWN_DEBATE',
+              message: 'You cannot join your own debate. Please wait for another user to join.' 
+            });
+            return;
+          }
+        }
+      } catch (dbError) {
+        console.warn('Error checking debate creator:', dbError);
+        // Continue - we can still let them join if this check fails
+      }
       
       // Check if user is already in the debate_participants table
       try {
@@ -493,7 +542,10 @@ io.on('connection', (socket) => {
       }
     } catch (error) {
       console.error(`Error in join_debate handler: ${error.message}`);
-      socket.emit('debate_error', { message: 'Server error when joining debate' });
+      socket.emit('debate_error', { 
+        code: 'SERVER_ERROR',
+        message: 'Server error when joining debate' 
+      });
     }
   });
 
@@ -922,7 +974,7 @@ io.on('connection', (socket) => {
           try {
             const { error } = await supabase
               .from('debate_rooms')
-              .update({ status: 'closed', ended_at: new Date().toISOString() })
+              .update({ status: 'completed', ended_at: new Date().toISOString() })
               .eq('id', debateId);
               
             if (error) {

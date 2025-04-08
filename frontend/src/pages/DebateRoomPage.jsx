@@ -69,6 +69,13 @@ const DebateRoomPage = () => {
           throw new Error(roomError.message);
         }
         
+        // Check if the user is trying to join their own debate
+        if (authState.isAuthenticated && roomData.creator_id === authState.user.id) {
+          setError('You cannot join your own debate. Please wait for another user to join or join a different debate.');
+          setLoading(false);
+          return;
+        }
+        
         setDebateRoom(roomData);
         
         // Get the debate topic
@@ -92,7 +99,7 @@ const DebateRoomPage = () => {
     };
     
     fetchDebateData();
-  }, [debateRoomId]);
+  }, [debateRoomId, authState]);
   
   // Set up WebSocket and WebRTC connections
   useEffect(() => {
@@ -102,6 +109,28 @@ const DebateRoomPage = () => {
     
     // Create socket connection
     socketRef.current = io();
+    
+    // Add error handling for socket connection
+    socketRef.current.on('connect', () => {
+      console.log('Socket connected successfully');
+    });
+    
+    socketRef.current.on('connect_error', (err) => {
+      console.error('Socket connection error:', err);
+      if (mounted) {
+        setError('Failed to connect to debate server. Please check your internet connection and try again.');
+      }
+    });
+    
+    // Add handler for user-already-in-debate error
+    socketRef.current.on('debate_error', (data) => {
+      console.error('Debate error:', data.message);
+      if (data.code === 'USER_ALREADY_IN_DEBATE') {
+        setError('You are already participating in this debate in another window or tab. Please close other instances of this debate.');
+      } else {
+        setError(`Debate error: ${data.message}`);
+      }
+    });
     
     // Only create WebRTC service once and don't recreate for state changes
     if (!webrtcServiceRef.current) {
@@ -131,7 +160,7 @@ const DebateRoomPage = () => {
           }
           
           // Handle disconnection
-          if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+          if (state === 'disconnected' || state === 'failed' || state === 'competed') {
             // Show appropriate UI
             console.log('Peer disconnected or connection failed');
           }
@@ -597,7 +626,27 @@ const DebateRoomPage = () => {
             {debateStatus === 'ready' && 'Both participants are ready'}
             {debateStatus === 'countdown' && `Debate starting in ${countdown}`}
             {debateStatus === 'debating' && 'Debate in progress'}
-            {debateStatus === 'finished' && 'Debate has ended'}
+            {debateStatus === 'finished' && (
+              <>
+                Debate has ended
+                <button 
+                  className="btn btn-primary view-results-btn"
+                  onClick={() => navigate(`/debates/${debateRoomId}/results`)}
+                  style={{
+                    marginLeft: '15px',
+                    padding: '5px 15px',
+                    backgroundColor: '#4CAF50',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  View Results
+                </button>
+              </>
+            )}
           </div>
           
           {/* Display peer readiness status */}
@@ -647,7 +696,7 @@ const DebateRoomPage = () => {
             ? 'Connected to peer' 
             : connectionState === 'connecting' 
               ? 'Connecting...' 
-              : connectionState === 'disconnected' || connectionState === 'failed' || connectionState === 'closed'
+              : connectionState === 'disconnected' || connectionState === 'failed' || connectionState === 'completed'
                 ? 'Disconnected'
                 : 'Waiting for peer...'}
         </span>
@@ -742,7 +791,27 @@ const DebateRoomPage = () => {
           )}
           {recordingStatus === 'processing' && <span>Processing recording...</span>}
           {recordingStatus === 'uploading' && <span>Uploading recording... ({uploadProgress}%)</span>}
-          {recordingStatus === 'uploaded' && <span>Recording uploaded successfully!</span>}
+          {recordingStatus === 'uploaded' && (
+            <>
+              <span>Recording uploaded successfully!</span>
+              <button 
+                className="btn btn-primary view-results-btn"
+                onClick={() => navigate(`/debates/${debateRoomId}/results`)}
+                style={{
+                  marginLeft: '10px',
+                  padding: '5px 15px',
+                  backgroundColor: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                View Results
+              </button>
+            </>
+          )}
           {recordingStatus === 'error' && <span>Recording error occurred</span>}
         </div>
       )}

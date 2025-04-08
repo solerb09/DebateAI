@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS transcriptions (
   role VARCHAR(20) NOT NULL, -- 'pro', 'con', or other roles
   transcript TEXT,
   audio_path TEXT,
+  segments JSONB, -- Add segments column to store transcript segments
   metadata JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

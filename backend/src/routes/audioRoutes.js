@@ -21,25 +21,8 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY
 });
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '../../uploads');
-fs.ensureDirSync(uploadsDir);
-
-// Setup storage for multer
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const debateDir = path.join(uploadsDir, req.body.debateId || 'unknown');
-    fs.ensureDirSync(debateDir);
-    cb(null, debateDir);
-  },
-  filename: function (req, file, cb) {
-    const userId = req.body.userId || 'unknown';
-    const streamType = req.body.streamType || 'unknown';
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, `${userId}-${streamType}-${uniqueSuffix}${ext}`);
-  }
-});
+// Instead of filesystem storage, use memory storage for temporary handling
+const storage = multer.memoryStorage();
 
 // Setup file filter for multer
 const fileFilter = (req, file, cb) => {
@@ -51,7 +34,7 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Create multer upload instance
+// Create multer upload instance with memory storage
 const upload = multer({ 
   storage, 
   fileFilter,
@@ -67,6 +50,8 @@ const transcriptionJobs = {};
  * Upload audio file and start transcription
  */
 router.post('/upload', upload.single('audio'), async (req, res) => {
+  let supabasePath = null;
+
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No audio file uploaded' });
@@ -80,19 +65,58 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
       });
     }
 
-    console.log(`Received audio file: ${req.file.filename} for debate ${debateId}`);
+    console.log(`Received audio file for debate ${debateId}`);
 
     // Generate a transcription ID for tracking
     const transcriptionId = uuidv4();
     
-    // Store job info
+    // Generate filename for Supabase storage
+    const ext = path.extname(req.file.originalname) || '.webm';
+    const filename = `${userId}-${streamType}-${Date.now()}${ext}`;
+    const storagePath = `${debateId}/${filename}`;
+    
+    // Upload file to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase
+      .storage
+      .from('debate-audio')
+      .upload(storagePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        cacheControl: '3600'
+      });
+      
+    if (uploadError) {
+      console.error('Error uploading to Supabase Storage:', uploadError);
+      return res.status(500).json({
+        error: 'Failed to store audio file',
+        details: uploadError.message
+      });
+    }
+    
+    supabasePath = storagePath;
+    
+    // Create a signed URL with 2 hour expiry for OpenAI processing
+    const { data: urlData, error: urlError } = await supabase
+      .storage
+      .from('debate-audio')
+      .createSignedUrl(storagePath, 7200); // 2 hours in seconds
+      
+    if (urlError) {
+      console.error('Error creating signed URL:', urlError);
+      return res.status(500).json({
+        error: 'Failed to generate access URL for audio',
+        details: urlError.message
+      });
+    }
+    
+    // Store job info with Supabase details
     transcriptionJobs[transcriptionId] = {
       status: 'pending',
       userId,
       debateId,
       streamType,
-      filePath: req.file.path,
-      fileName: req.file.filename,
+      storagePath: storagePath,
+      fileUrl: urlData.signedUrl,
+      fileName: filename,
       timestamp: new Date(),
       result: null
     };
@@ -105,13 +129,24 @@ router.post('/upload', upload.single('audio'), async (req, res) => {
       success: true,
       message: 'Audio uploaded successfully, transcription started',
       transcriptionId,
-      fileName: req.file.filename,
+      fileName: filename,
       debateId,
       userId,
       streamType
     });
   } catch (error) {
     console.error('Error uploading audio:', error);
+    
+    // Cleanup: If we uploaded to Supabase but something else failed, delete the file
+    if (supabasePath) {
+      try {
+        await supabase.storage.from('debate-audio').remove([supabasePath]);
+        console.log(`Cleaned up Supabase file after error: ${supabasePath}`);
+      } catch (cleanupError) {
+        console.error('Error during file cleanup:', cleanupError);
+      }
+    }
+    
     res.status(500).json({
       error: 'Failed to process audio',
       details: error.message
@@ -167,11 +202,24 @@ async function startTranscription(transcriptionId) {
     console.log(`Starting transcription for job ${transcriptionId}`);
     job.status = 'processing';
     
-    // Call OpenAI Whisper API
+    // Fetch the audio file from the signed URL
+    const response = await fetch(job.fileUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch audio file: ${response.statusText}`);
+    }
+    
+    const audioBuffer = await response.arrayBuffer();
+    const audioFile = new File(
+      [audioBuffer], 
+      job.fileName, 
+      { type: 'audio/webm' }
+    );
+    
+    // Call OpenAI Whisper API with the fetched file
     const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(job.filePath),
+      file: audioFile,
       model: 'whisper-1',
-      language: 'en', // Specify language if known, or let Whisper auto-detect
+      language: 'en',
       response_format: 'verbose_json'
     });
     
@@ -203,12 +251,13 @@ async function startTranscription(transcriptionId) {
           user_id: job.userId,
           role: role,
           transcript: transcription.text,
-          audio_file_path: job.filePath,
+          audio_path: job.storagePath,
           segments: transcription.segments,
           metadata: {
             streamType: job.streamType,
             duration: transcription.duration,
             wordCount: transcription.text.split(' ').length,
+            storage_url: job.fileUrl.split('?')[0], // Store base URL without query params
             transcriptionId
           }
         });
@@ -226,6 +275,16 @@ async function startTranscription(transcriptionId) {
     
     job.status = 'failed';
     job.error = error.message;
+    
+    // Cleanup the file from storage if transcription failed
+    try {
+      if (job.storagePath) {
+        await supabase.storage.from('debate-audio').remove([job.storagePath]);
+        console.log(`Cleaned up failed transcription audio: ${job.storagePath}`);
+      }
+    } catch (cleanupError) {
+      console.error('Error during file cleanup after failed transcription:', cleanupError);
+    }
   }
 }
 
@@ -296,6 +355,66 @@ router.get('/transcriptions/:debateId', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error',
+      error: error.message
+    });
+  }
+});
+
+// Add a route to manually clean up old audio files
+router.post('/cleanup', async (req, res) => {
+  try {
+    const { ageInHours = 24 } = req.body;
+    
+    // Get a list of files from the storage bucket
+    const { data: files, error } = await supabase
+      .storage
+      .from('debate-audio')
+      .list();
+      
+    if (error) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to list files',
+        error: error.message
+      });
+    }
+    
+    const cutoffTime = new Date(Date.now() - (ageInHours * 60 * 60 * 1000));
+    const filesToDelete = files.filter(file => new Date(file.created_at) < cutoffTime);
+    
+    if (filesToDelete.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: 'No files to clean up',
+        filesChecked: files.length
+      });
+    }
+    
+    // Delete the old files
+    const filePaths = filesToDelete.map(file => file.name);
+    const { error: deleteError } = await supabase
+      .storage
+      .from('debate-audio')
+      .remove(filePaths);
+      
+    if (deleteError) {
+      return res.status(500).json({
+        success: false,
+        message: 'Error deleting old files',
+        error: deleteError.message
+      });
+    }
+    
+    res.status(200).json({
+      success: true,
+      message: `Successfully cleaned up ${filesToDelete.length} old audio files`,
+      deletedCount: filesToDelete.length
+    });
+  } catch (error) {
+    console.error('Error in cleanup routine:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during cleanup',
       error: error.message
     });
   }
