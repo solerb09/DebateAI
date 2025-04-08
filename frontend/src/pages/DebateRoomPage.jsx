@@ -29,6 +29,50 @@ const DebateRoomPage = () => {
   const socketRef = useRef(null);
   const webrtcServiceRef = useRef(null);
   const recordingTimerRef = useRef(null);
+
+  //speaking indicators
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isPeerSpeaking, setIsPeerSpeaking] = useState(false);
+  
+  const [interruptions, setInterruptions] = useState(0);
+  const bothSpeakingTimerRef = useRef(null);
+  const bothSpeakingStartTime = useRef(null);
+  
+  const detectSpeaking = (stream, setIsSpeaking) => {
+    const audioContext = new AudioContext();
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+    analyser.fftSize = 512;
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    const SPEAKING_THRESHOLD = 30; 
+    
+    const checkVolume = () => {
+      analyser.getByteFrequencyData(dataArray);
+      const volume = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+      
+      setIsSpeaking(prevState => {
+        const newSpeakingState = volume > SPEAKING_THRESHOLD;
+        
+        // Only log if the state changes
+        if (newSpeakingState !== prevState) {
+          console.log(`Speaking detected: ${newSpeakingState}, Volume: ${volume.toFixed(2)}`);
+        }
+        
+        return newSpeakingState;
+      });
+
+      requestAnimationFrame(checkVolume);
+    };
+
+    checkVolume();
+
+    return () => {
+      audioContext.close();
+    };
+  };
+  
   
   // Get actual user ID from authentication context
   const getUserId = () => {
@@ -102,6 +146,8 @@ const DebateRoomPage = () => {
     webrtcServiceRef.current.onRemoteStream((stream) => {
       if (remoteVideoRef.current && mounted) {
         remoteVideoRef.current.srcObject = stream;
+        // Add speaking detection for remote stream
+        detectSpeaking(stream, setIsPeerSpeaking);
       }
     });
     
@@ -119,6 +165,8 @@ const DebateRoomPage = () => {
     
     // Start local stream
     const startMedia = async () => {
+      console.log('Starting media...');
+
       try {
         const stream = await webrtcServiceRef.current.startLocalStream();
         if (localVideoRef.current && mounted) {
@@ -127,6 +175,7 @@ const DebateRoomPage = () => {
         
         // Join the debate room after media is ready
         webrtcServiceRef.current.joinDebate();
+        detectSpeaking(stream, setIsSpeaking);
       } catch (err) {
         console.error('Failed to start media:', err);
         if (mounted) {
@@ -330,6 +379,30 @@ const DebateRoomPage = () => {
     };
   }, []);
   
+  // Add effect to detect interruptions
+  useEffect(() => {
+    if (isSpeaking && isPeerSpeaking) {
+      // Both started speaking
+      if (!bothSpeakingStartTime.current) {
+        bothSpeakingStartTime.current = Date.now();
+      } else if (Date.now() - bothSpeakingStartTime.current >= 1000) {
+        // If both have been speaking for more than 1 second
+        if (!bothSpeakingTimerRef.current) {
+          setInterruptions(prev => {
+            const newInterruptions = prev + 1;
+            console.log('Interruptions:', newInterruptions);
+            return newInterruptions;
+          });
+          bothSpeakingTimerRef.current = true; // Mark this interruption as counted
+        }
+      }
+    } else {
+      // Reset when either person stops speaking
+      bothSpeakingStartTime.current = null;
+      bothSpeakingTimerRef.current = null;
+    }
+  }, [isSpeaking, isPeerSpeaking]);
+  
   if (loading) {
     return <div className="loading">Loading debate room...</div>;
   }
@@ -374,25 +447,23 @@ const DebateRoomPage = () => {
       </div>
       
       <div className="video-container">
-        <div className="video-wrapper">
-          <video 
-            ref={localVideoRef} 
-            className="video-element local-video" 
-            autoPlay 
-            muted 
+        <div className={`video-wrapper ${isSpeaking ? 'local-speaking' : ''}`}>
+          <video
+            ref={localVideoRef}
+            className="video-element local-video"
+            autoPlay
+            muted
             playsInline
           />
-          <div className="video-label">You</div>
         </div>
-        
-        <div className="video-wrapper">
-          <video 
-            ref={remoteVideoRef} 
-            className="video-element remote-video" 
-            autoPlay 
+
+        <div className={`video-wrapper ${isPeerSpeaking ? 'remote-speaking' : ''}`}>
+          <video
+            ref={remoteVideoRef}
+            className="video-element remote-video"
+            autoPlay
             playsInline
           />
-          <div className="video-label">Peer</div>
         </div>
       </div>
       
