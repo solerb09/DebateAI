@@ -1,20 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';  
 
 function LoginPage() {
-  const { authState, login } = useAuth();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const navigate = useNavigate();  
-
-  // Redirect if user is already authenticated and not in loading state
-  useEffect(() => {
-    if (authState.isAuthenticated && !authState.isLoading) {
-      navigate('/');
-    }
-  }, [authState.isAuthenticated, authState.isLoading, navigate]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -29,13 +22,6 @@ function LoginPage() {
     }
   };
 
-  // Show loading state or nothing during authentication check
-  if (authState.isLoading) {
-    return <div className="loading">Loading...</div>;
-  }
-
-  // If already authenticated, this will be redirected by the useEffect above
-  // But we render the form to avoid flash of content
   return (
     <div className="container login-container">
       <div className="login-card">

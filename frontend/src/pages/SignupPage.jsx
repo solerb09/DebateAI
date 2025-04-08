@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../config/supabaseClient';
+import { supabase } from '../supabaseClient';
 import '../styles/auth.css';
 
 function SignupPage() {
@@ -101,7 +101,7 @@ function SignupPage() {
         }
         
         // Handle successful signup
-        navigate('/', { 
+        navigate('/login', { 
           state: { message: 'Registration successful! Please check your email to confirm your account.' }
         });
       } catch (error) {

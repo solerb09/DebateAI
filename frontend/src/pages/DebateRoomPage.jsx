@@ -11,7 +11,7 @@ import { supabase } from '../supabaseClient';
 const DebateRoomPage = () => {
   const { id: debateRoomId } = useParams();
   const navigate = useNavigate();
-  const { authState } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   
   const [debateRoom, setDebateRoom] = useState(null);
   const [debateTopic, setDebateTopic] = useState(null);
@@ -46,11 +46,11 @@ const DebateRoomPage = () => {
   // Get actual user ID from authentication context
   const getUserId = () => {
     // If user is authenticated, use the actual user ID
-    if (authState.isAuthenticated && authState.user) {
-      return authState.user.id;
+    if (isAuthenticated && user) {
+      return user.id;
     }
     
-    
+    // Generate a fallback random ID if not authenticated
     return userId;
   };
   
@@ -70,7 +70,7 @@ const DebateRoomPage = () => {
         }
         
         // Check if the user is trying to join their own debate
-        if (authState.isAuthenticated && roomData.creator_id === authState.user.id) {
+        if (isAuthenticated && roomData.creator_id === user.id) {
           setError('You cannot join your own debate. Please wait for another user to join or join a different debate.');
           setLoading(false);
           return;
@@ -99,7 +99,7 @@ const DebateRoomPage = () => {
     };
     
     fetchDebateData();
-  }, [debateRoomId, authState]);
+  }, [debateRoomId, isAuthenticated]);
   
   // Set up WebSocket and WebRTC connections
   useEffect(() => {

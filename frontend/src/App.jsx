@@ -9,19 +9,23 @@ import DebateResultsPage from './pages/DebateResultsPage';
 import NotFoundPage from './pages/NotFoundPage';
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage'; 
-import { AuthProvider, AuthContext } from './contexts/AuthContext'; 
-
+import { AuthContext, AuthProvider } from './contexts/AuthContext'; 
+import ProfilePage from './pages/ProfilePage';
 
 function ProtectedRoute({ children }) {
-  const { authState } = useContext(AuthContext);
+
+  const auth = useContext(AuthContext);
+  
+  // For debugging - see what properties are available
+  console.log("Auth in ProtectedRoute:", auth);
   
   // When still loading, show nothing or a loading indicator
-  if (authState.isLoading) {
+  if (auth?.loading) {  // Using optional chaining for safety
     return <div className="loading">Loading...</div>; 
   }
   
-  // Only redirect if we've finished loading and the user is not authenticated
-  if (!authState.isAuthenticated) {
+  // Only redirect if the user is not authenticated
+  if (!auth?.isAuthenticated) {
     return <Navigate to="/login" replace />; 
   }
   
@@ -37,10 +41,33 @@ function App() {
         <main className="container">
             <Routes>
               <Route path="/" element={<HomePage />} />
-              <Route path="/debates" element={<ProtectedRoute><DebateListPage /></ProtectedRoute>} />
-              <Route path="/debates/create" element={<ProtectedRoute><CreateDebatePage /></ProtectedRoute>} />
-              <Route path="/debates/:id" element={<ProtectedRoute><DebateRoomPage /></ProtectedRoute>} />
-              <Route path="/debates/:id/results" element={<ProtectedRoute><DebateResultsPage /></ProtectedRoute>} />
+              
+              {/* Protected routes */}
+              <Route path="/debates" element={
+                <ProtectedRoute>
+                  <DebateListPage />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/debates/create" element={
+                <ProtectedRoute>
+                  <CreateDebatePage />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/debates/:id" element={
+                <ProtectedRoute>
+                  <DebateRoomPage />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/profile" element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              } />
+              
+              {/* Public routes */}
               <Route path="/login" element={<LoginPage />} /> 
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/404" element={<NotFoundPage />} />
