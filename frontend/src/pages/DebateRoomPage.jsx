@@ -11,8 +11,7 @@ import { supabase } from '../supabaseClient';
 const DebateRoomPage = () => {
   const { id: debateRoomId } = useParams();
   const navigate = useNavigate();
-  const { authState } = useAuth();
-  
+  const { user, isAuthenticated } = useAuth();  
   const [debateRoom, setDebateRoom] = useState(null);
   const [debateTopic, setDebateTopic] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -34,8 +33,8 @@ const DebateRoomPage = () => {
   // Get actual user ID from authentication context
   const getUserId = () => {
     // If user is authenticated, use the actual user ID
-    if (authState.isAuthenticated && authState.user) {
-      return authState.user.id;
+    if (isAuthenticated && user) {
+      return user;
     }
     
     
