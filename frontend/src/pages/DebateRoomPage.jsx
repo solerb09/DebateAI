@@ -171,7 +171,7 @@ const DebateRoomPage = () => {
       console.log('Socket connected successfully');
     });
     
-    // Add handler for user-already-in-debate error (from main)
+    // Add handler for user-already-in-debate error
     socketRef.current.on('debate_error', (data) => {
       console.error('Debate error:', data.message);
       if (data.code === 'USER_ALREADY_IN_DEBATE') {
@@ -201,6 +201,23 @@ const DebateRoomPage = () => {
         }
       });
       
+      webrtcServiceRef.current.onConnectionStateChange((state) => {
+        if (mounted) {
+          setConnectionState(state);
+
+          // When connection is established, update debate status to 'waiting'
+          if (state === 'connected' && debateStatus === 'connecting') {
+            setDebateStatus('waiting');
+          }
+
+          // Handle disconnection
+          if (state === 'disconnected' || state === 'failed' || state === 'competed') {
+            // Show appropriate UI
+            console.log('Peer disconnected or connection failed');
+          }
+        }
+      });
+
       // Start local stream with speaking detection
       const startMedia = async () => {
         try {
