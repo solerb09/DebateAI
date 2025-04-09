@@ -31,7 +31,6 @@ const Header = () => {
             
             {/* Show Test Call link */}
             <li className="nav-link">
-              <Link to="/call">Test Call</Link>
             </li>
             
             {/* Auth links */}
