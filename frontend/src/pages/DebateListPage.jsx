@@ -38,9 +38,14 @@ const DebateListPage = () => {
         
         // Process the data to make it easier to work with
         const processedTopics = topics.map(topic => {
-          // Find a waiting or active room for this topic
+          // Find any room for this topic (waiting, active, or completed)
           const availableRoom = topic.debate_rooms.find(room => 
             room.status === 'waiting' || room.status === 'active'
+          );
+          
+          // Also look for completed debates
+          const completedRoom = topic.debate_rooms.find(room => 
+            room.status === 'completed'
           );
           
           return {
@@ -50,8 +55,8 @@ const DebateListPage = () => {
             category: topic.categories?.name || 'Uncategorized',
             status: topic.status,
             createdAt: new Date(topic.created_at).toLocaleString(),
-            roomId: availableRoom?.id,
-            roomStatus: availableRoom?.status
+            roomId: availableRoom?.id || completedRoom?.id,
+            roomStatus: availableRoom?.status || completedRoom?.status
           };
         });
         
@@ -67,9 +72,13 @@ const DebateListPage = () => {
     fetchDebates();
   }, []);
 
-  const handleJoinDebate = (debateId) => {
-    // Navigate to the debate room
-    navigate(`/debates/${debateId}`);
+  const handleJoinDebate = (debateId, status) => {
+    // Navigate to the appropriate page based on debate status
+    if (status === 'completed') {
+      navigate(`/debates/${debateId}/results`);
+    } else {
+      navigate(`/debates/${debateId}`);
+    }
   };
 
   if (loading) {
@@ -111,11 +120,20 @@ const DebateListPage = () => {
               </div>
               {debate.roomId ? (
                 <button
-                  onClick={() => handleJoinDebate(debate.roomId)}
+                  onClick={() => handleJoinDebate(debate.roomId, debate.roomStatus)}
                   className="btn"
-                  style={{ marginTop: '1rem' }}
+                  style={{ 
+                    marginTop: '1rem',
+                    backgroundColor: debate.roomStatus === 'completed' ? '#4CAF50' : '',
+                    color: debate.roomStatus === 'completed' ? 'white' : ''
+                  }}
                 >
-                  {debate.roomStatus === 'waiting' ? 'Join Debate' : 'View Debate'}
+                  {debate.roomStatus === 'waiting' 
+                    ? 'Join Debate' 
+                    : debate.roomStatus === 'completed' 
+                      ? 'View Results' 
+                      : 'View Debate'
+                  }
                 </button>
               ) : (
                 <button

@@ -14,13 +14,18 @@ class WebRTCService {
     this.onRemoteStreamCallback = null;
     this.onConnectionStateChangeCallback = null;
     this.isInitiator = false;
+    this.isConnectionEstablished = false; // Add flag to track if connection is established
+    this.reconnectAttempts = 0; // Track reconnection attempts
+    this.maxReconnectAttempts = 3; // Maximum number of reconnection attempts
+    this.lastIceState = null; // Track the last ICE connection state
     
     // Add recording-related properties
     this.localRecorder = null;
-    this.remoteRecorder = null;
     this.localAudioChunks = [];
-    this.remoteAudioChunks = [];
-    this.isRecording = false;
+    
+    // Media control flags
+    this.isAudioEnabled = true;
+    this.isVideoEnabled = true;
   }
 
   /**
@@ -48,6 +53,13 @@ class WebRTCService {
     // Handle incoming offer
     this.socket.on('offer', async ({ offer, from }) => {
       console.log('Received offer from peer', from);
+      
+      // Only handle offer if we don't already have an established connection
+      if (this.isConnectionEstablished && this.peerConnection?.connectionState === 'connected') {
+        console.log('Already have an established connection, ignoring offer');
+        return;
+      }
+      
       await this.handleOffer(offer, from);
     });
 
@@ -63,22 +75,43 @@ class WebRTCService {
       this.handleIceCandidate(candidate);
     });
 
-    // Handle debate ready event (both users present)
-    this.socket.on('debate_ready', ({ participants }) => {
-      console.log('Debate ready, participants:', participants);
+    // Replace the 'debate_ready' event with 'debate_participants_connected'
+    this.socket.on('debate_participants_connected', ({ participants }) => {
+      console.log('Both participants are connected, ready for WebRTC:', participants);
       
-      // If we are the first participant, initiate the call
-      if (participants[0] === this.userId) {
-        console.log('I am the initiator, creating offer');
-        this.isInitiator = true;
-        
-        // Add a delay to make sure both peers are ready
-        setTimeout(() => {
-          this.createOffer();
-        }, 1000);
+      // Only initiate connection if we don't already have one established
+      if (!this.isConnectionEstablished) {
+        // If we are the first participant, initiate the call
+        if (participants[0] === this.userId) {
+          console.log('I am the initiator, creating offer');
+          this.isInitiator = true;
+          
+          // Add a delay to make sure both peers are ready
+          setTimeout(() => {
+            this.createOffer();
+          }, 1000);
+        } else {
+          console.log('I am the receiver, waiting for offer');
+        }
       } else {
-        console.log('I am the receiver, waiting for offer');
+        console.log('Connection already established, skipping new connection setup');
       }
+    });
+    
+    // Listen for debate_ready and other state changes but don't restart connection
+    this.socket.on('debate_ready', ({ participants }) => {
+      console.log('Debate ready, both participants have indicated readiness:', participants);
+      // No WebRTC changes needed - keep existing connection
+    });
+    
+    // Listen for debate start but don't restart connection
+    this.socket.on('debate_start', ({ firstTurn, roles }) => {
+      console.log('Debate started, maintaining WebRTC connection');
+    });
+    
+    // Listen for debate finish but don't restart connection
+    this.socket.on('debate_finished', ({ message }) => {
+      console.log('Debate finished, maintaining WebRTC connection');
     });
   }
 
@@ -98,7 +131,14 @@ class WebRTCService {
    */
   setupPeerConnection() {
     if (this.peerConnection) {
-      // Close any existing connection before creating a new one
+      if (this.peerConnection.connectionState === 'connected' || 
+          this.peerConnection.iceConnectionState === 'connected') {
+        console.log('Connection already established, not recreating peer connection');
+        return; // Don't recreate if already connected
+      }
+      
+      // Close existing connection only if it's problematic
+      console.log('Closing existing peer connection with state:', this.peerConnection.connectionState);
       this.peerConnection.close();
     }
     
@@ -106,6 +146,12 @@ class WebRTCService {
       iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
         { urls: 'stun:stun1.l.google.com:19302' },
+        // Add TURN servers for better reliability behind NATs
+        {
+          urls: 'turn:global.turn.twilio.com:3478?transport=udp',
+          username: 'anyuser',  // These are placeholders - use actual credentials
+          credential: 'anypass' // in a production environment
+        }
       ]
     };
 
@@ -125,9 +171,29 @@ class WebRTCService {
     
     // Log ICE connection state changes
     this.peerConnection.oniceconnectionstatechange = () => {
-      console.log('ICE connection state:', this.peerConnection.iceConnectionState);
-      if (this.peerConnection.iceConnectionState === 'connected') {
+      const state = this.peerConnection.iceConnectionState;
+      console.log('ICE connection state changed:', state);
+      
+      // Track the state change for reconnection logic
+      this.lastIceState = state;
+      
+      if (state === 'connected' || state === 'completed') {
         console.log('ICE connected - peer connection established');
+        this.isConnectionEstablished = true;
+        this.reconnectAttempts = 0; // Reset reconnect attempts on successful connection
+      } 
+      else if (state === 'disconnected') {
+        console.log('ICE disconnected - may be temporary');
+        // Don't do anything immediate - might recover on its own
+      }
+      else if (state === 'failed') {
+        console.log('ICE connection failed - attempting to recover');
+        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+          this.reconnectAttempts++;
+          console.log(`Reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+          // Don't recreate the whole connection - just restart ICE
+          this.peerConnection.restartIce();
+        }
       }
     };
 
@@ -149,6 +215,12 @@ class WebRTCService {
     this.peerConnection.onconnectionstatechange = () => {
       const state = this.peerConnection.connectionState;
       console.log('Connection state changed:', state);
+      
+      if (state === 'connected') {
+        console.log('WebRTC connection established successfully');
+        this.isConnectionEstablished = true;
+      }
+      
       if (this.onConnectionStateChangeCallback) {
         this.onConnectionStateChangeCallback(state);
       }
@@ -217,12 +289,12 @@ class WebRTCService {
       
       this.remoteRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          this.remoteAudioChunks.push(event.data);
+          this.localAudioChunks.push(event.data);
         }
       };
       
       this.remoteRecorder.onstop = () => {
-        console.log('Remote recording stopped, chunks collected:', this.remoteAudioChunks.length);
+        console.log('Remote recording stopped, chunks collected:', this.localAudioChunks.length);
       };
       
       // Start recording remote audio with 1-second chunks
@@ -237,6 +309,12 @@ class WebRTCService {
    * Capture local media stream (audio and video)
    */
   async startLocalStream() {
+    // If we already have a local stream with active tracks, reuse it
+    if (this.localStream && this.localStream.getTracks().some(track => track.readyState === 'live')) {
+      console.log('Reusing existing local stream');
+      return this.localStream;
+    }
+    
     try {
       const mediaConstraints = {
         audio: true,
@@ -265,6 +343,14 @@ class WebRTCService {
    */
   async createOffer() {
     try {
+      // If we already have an established connection, don't create a new offer
+      if (this.isConnectionEstablished && 
+          (this.peerConnection.connectionState === 'connected' || 
+           this.peerConnection.iceConnectionState === 'connected')) {
+        console.log('Connection already established, not creating new offer');
+        return;
+      }
+      
       console.log('Creating offer');
       
       // Make sure we have tracks added before creating offer
@@ -278,7 +364,8 @@ class WebRTCService {
 
       const offer = await this.peerConnection.createOffer({
         offerToReceiveAudio: true,
-        offerToReceiveVideo: true
+        offerToReceiveVideo: true,
+        iceRestart: true // Enable ICE restart to help with connectivity issues
       });
       
       console.log('Setting local description (offer)');
@@ -431,24 +518,33 @@ class WebRTCService {
   cleanup() {
     console.log('Cleaning up WebRTC resources');
     
+    // Remove socket event listeners
+    if (this.socket) {
+      this.socket.off('offer');
+      this.socket.off('answer');
+      this.socket.off('ice_candidate');
+      this.socket.off('debate_ready');
+      this.socket.off('debate_participants_connected');
+      this.socket.off('debate_start');
+      this.socket.off('debate_finished');
+    }
+    
     // Stop any active recordings
     if (this.isRecording) {
       if (this.localRecorder && this.localRecorder.state !== 'inactive') {
-        this.localRecorder.stop();
-      }
-      
-      if (this.remoteRecorder && this.remoteRecorder.state !== 'inactive') {
-        this.remoteRecorder.stop();
+        try {
+          this.localRecorder.stop();
+        } catch (e) {
+          console.error('Error stopping local recorder:', e);
+        }
       }
       
       this.isRecording = false;
+      this.localRecorder = null;
+      this.localAudioChunks = [];
     }
     
     // Clean up recorder objects
-    this.localRecorder = null;
-    this.remoteRecorder = null;
-    this.localAudioChunks = [];
-    this.remoteAudioChunks = [];
     
     // Stop all tracks in the local stream
     if (this.localStream) {
@@ -480,10 +576,13 @@ class WebRTCService {
     
     // Reset state
     this.isInitiator = false;
+    this.isConnectionEstablished = false;
+    this.reconnectAttempts = 0;
+    this.lastIceState = null;
   }
 
   /**
-   * Start recording both local and remote audio streams
+   * Start audio recording
    */
   startRecording() {
     if (this.isRecording) {
@@ -492,7 +591,6 @@ class WebRTCService {
     }
 
     this.localAudioChunks = [];
-    this.remoteAudioChunks = [];
     
     // Set up local audio recording if we have a local stream
     if (this.localStream) {
@@ -525,39 +623,6 @@ class WebRTCService {
       }
     } else {
       console.warn('No local stream available for recording');
-    }
-    
-    // Set up remote audio recording if we have a remote stream
-    if (this.remoteStream) {
-      // Create a new audio-only stream from the remote stream's audio tracks
-      const remoteAudioStream = new MediaStream(this.remoteStream.getAudioTracks());
-      
-      const options = {
-        mimeType: 'audio/webm',
-        audioBitsPerSecond: 128000
-      };
-      
-      try {
-        this.remoteRecorder = new MediaRecorder(remoteAudioStream, options);
-        
-        this.remoteRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            this.remoteAudioChunks.push(event.data);
-          }
-        };
-        
-        this.remoteRecorder.onstop = () => {
-          console.log('Remote recording stopped, chunks collected:', this.remoteAudioChunks.length);
-        };
-        
-        // Start recording remote audio with 1-second chunks
-        this.remoteRecorder.start(1000);
-        console.log('Started remote audio recording');
-      } catch (error) {
-        console.error('Failed to start remote recording:', error);
-      }
-    } else {
-      console.warn('No remote stream available for recording yet');
     }
     
     this.isRecording = true;
@@ -603,27 +668,6 @@ class WebRTCService {
         };
         
         this.localRecorder.stop();
-      }
-      
-      // Stop remote recording if active
-      if (this.remoteRecorder && this.remoteRecorder.state !== 'inactive') {
-        pendingStops++;
-        
-        this.remoteRecorder.onstop = () => {
-          console.log('Remote recording stopped');
-          
-          // Create a single blob from all chunks
-          const remoteAudioBlob = new Blob(this.remoteAudioChunks, { type: 'audio/webm' });
-          recordings.remote = {
-            blob: remoteAudioBlob,
-            url: URL.createObjectURL(remoteAudioBlob),
-            size: remoteAudioBlob.size
-          };
-          
-          checkComplete();
-        };
-        
-        this.remoteRecorder.stop();
       }
       
       // If no recorders were active, resolve immediately
@@ -672,34 +716,45 @@ class WebRTCService {
       }
     }
     
-    // Upload remote recording if available
-    if (recordings.remote) {
-      try {
-        const formData = new FormData();
-        formData.append('audio', recordings.remote.blob, 'remote-audio.webm');
-        formData.append('debateId', this.debateId);
-        formData.append('userId', this.userId);
-        formData.append('streamType', 'remote');
-        
-        console.log('Uploading remote recording...');
-        const response = await fetch('/api/audio/upload', {
-          method: 'POST',
-          body: formData
-        });
-        
-        if (response.ok) {
-          results.remote = await response.json();
-          console.log('Remote recording uploaded successfully');
-        } else {
-          throw new Error(`Server responded with ${response.status}`);
+    return results;
+  }
+
+  resetConnection() {
+    console.log('Resetting WebRTC connection');
+    
+    // Clean up recording
+    if (this.isRecording) {
+      if (this.localRecorder && this.localRecorder.state !== 'inactive') {
+        try {
+          this.localRecorder.stop();
+        } catch (e) {
+          console.error('Error stopping local recorder:', e);
         }
-      } catch (error) {
-        console.error('Failed to upload remote recording:', error);
-        results.remote = { error: error.message };
       }
+      
+      this.isRecording = false;
+      this.localRecorder = null;
+      this.localAudioChunks = [];
     }
     
-    return results;
+    // Close peer connection
+    if (this.peerConnection) {
+      try {
+        this.peerConnection.close();
+      } catch (err) {
+        console.error('Error closing peer connection:', err);
+      }
+      this.peerConnection = null;
+    }
+    
+    // Release media streams
+    if (this.localStream) {
+      this.stopMediaTracks(this.localStream);
+      this.localStream = null;
+    }
+    
+    // We don't stop remote stream tracks as they're managed by the peer connection
+    this.remoteStream = null;
   }
 }
 
