@@ -174,10 +174,18 @@ a:hover {
   height: 100%;
   object-fit: cover;
 }
-
-.local-video {
-  transform: scaleX(-1); /* Mirror the local video */
+.video-wrapper.local-speaking::before, /*create pseudo element to show when local user is speaking*/
+.video-wrapper.remote-speaking::before {
+  transform: scaleX(-1);
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border: 5px solid green;
 }
+
 
 .video-controls {
   display: flex;
