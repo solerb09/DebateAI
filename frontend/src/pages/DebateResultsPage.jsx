@@ -9,7 +9,7 @@ const API_URL = import.meta.env.VITE_API_URL;
  */
 const DebateResultsPage = () => {
   const { id: debateId } = useParams();
-  const { authState } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [debate, setDebate] = useState(null);
   const [transcriptions, setTranscriptions] = useState([]);
   const [scores, setScores] = useState({ ai: 0, human: 0 });
