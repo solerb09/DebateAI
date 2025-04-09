@@ -5,6 +5,16 @@ import WebRTCService from '../services/webrtcService';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../supabaseClient';
 
+// Get API URL from environment variables only
+const API_URL = import.meta.env.VITE_API_URL;
+
+// Log the URL being used and add a warning if it's missing
+if (!API_URL) {
+  console.error("WARNING: VITE_API_URL environment variable is not set!");
+} else {
+  console.log("Using API URL from environment:", API_URL);
+}
+
 /**
  * DebateRoomPage component - handles debate video chat using WebRTC
  */
@@ -108,7 +118,10 @@ const DebateRoomPage = () => {
     let mounted = true;
     
     // Create socket connection
-    socketRef.current = io();
+    socketRef.current = io(API_URL, {
+      transports: ['websocket'],
+      withCredentials: true
+    });
     
     // Add error handling for socket connection
     socketRef.current.on('connect', () => {
@@ -317,7 +330,7 @@ const DebateRoomPage = () => {
   const updateDebateStatus = async (status) => {
     try {
       console.log(`Updating debate ${debateRoomId} status to ${status}`);
-      const response = await fetch(`/api/debates/${debateRoomId}`, {
+      const response = await fetch(`${API_URL}/api/debates/${debateRoomId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

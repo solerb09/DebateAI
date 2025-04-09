@@ -8,6 +8,9 @@ const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
 require('dotenv').config();
+
+console.log("CLIENT_URL is set to:", process.env.CLIENT_URL);
+
 const { createClient } = require('@supabase/supabase-js');
 
 // Import route handlers
@@ -25,7 +28,7 @@ const server = http.createServer(app);
 // Set up Socket.io with CORS configuration
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: process.env.CLIENT_URL,
     methods: ['GET', 'POST'],
     credentials: true
   }

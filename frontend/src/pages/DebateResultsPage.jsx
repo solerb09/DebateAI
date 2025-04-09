@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+const API_URL = import.meta.env.VITE_API_URL;
 
 /**
  * Page to view debate results after the debate is complete
@@ -28,7 +29,7 @@ const DebateResultsPage = () => {
         
         // Fetch debate details
         console.log(`[RESULTS] Fetching debate details...`);
-        const debateResponse = await fetch(`/api/debates/${debateId}`);
+        const debateResponse = await fetch(`${API_URL}/api/debates/${debateId}`);
         
         if (!debateResponse.ok) {
           console.error(`[RESULTS] Error ${debateResponse.status} fetching debate details`);
@@ -44,7 +45,7 @@ const DebateResultsPage = () => {
         // Fetch transcriptions
         try {
           console.log(`[RESULTS] Fetching transcriptions...`);
-          const transcriptResponse = await fetch(`/api/audio/transcriptions/${debateId}`);
+          const transcriptResponse = await fetch(`${API_URL}/api/audio/transcriptions/${debateId}`);
           const responseData = await transcriptResponse.json();
           
           if (transcriptResponse.ok) {
