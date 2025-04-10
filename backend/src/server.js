@@ -9,7 +9,7 @@ const socketIo = require('socket.io');
 const cors = require('cors');
 require('dotenv').config();
 
-console.log("CLIENT_URL is set to:", process.env.CLIENT_URL);
+console.log("ci cd CLIENT_URL is set to:", process.env.CLIENT_URL);
 
 const { createClient } = require('@supabase/supabase-js');
 
