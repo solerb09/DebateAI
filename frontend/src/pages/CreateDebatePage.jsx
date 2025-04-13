@@ -14,7 +14,7 @@ const CreateDebatePage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
-  const { authState } = useAuth();
+  const { user,isAuthenticated } = useAuth();
 
   // Fetch categories on component mount
   useEffect(() => {
@@ -45,8 +45,8 @@ const CreateDebatePage = () => {
   // Get actual user ID from authentication context
   const getUserId = () => {
     // If user is authenticated, use the actual user ID
-    if (authState.isAuthenticated && authState.user) {
-      return authState.user.id;
+    if (isAuthenticated && user) {
+      return user.id;
     }
     
     // Fallback to localStorage for backward compatibility or guest users
