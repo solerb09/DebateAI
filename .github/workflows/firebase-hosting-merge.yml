@@ -23,6 +23,8 @@ jobs:
         run: |
           echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" >> frontend/.env
           echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> frontend/.env
+          echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" > frontend/.env.production
+          echo "VITE_SOCKET_URL=${{ secrets.VITE_SOCKET_URL }}" >> frontend/.env.production
 
       - name: Build Vite React App
         run: |
