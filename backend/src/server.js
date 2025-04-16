@@ -62,7 +62,7 @@ app.locals.debateRooms = debateRooms;
 // API routes
 app.use('/api/debates', debateRoutes);
 app.use('/api/audio', audioRoutes);
-app.use('/api/grading', gradingRoutes);
+app.use('/api/grading', gradingRoutes)
 
 // Basic route
 app.get('/', (req, res) => {
