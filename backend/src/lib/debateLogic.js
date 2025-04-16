@@ -265,7 +265,7 @@ const handleTurnExpiration = async (debateId, debateRooms, io, supabase) => {
     console.log(`[TIMER EXPIRED] Broadcasting new turn ${newTurn} to room ${debateId}`);
     io.to(debateId).emit('speaking_turn', {
       turn: newTurn,
-      timeRemaining: 10 // 10 seconds for testing
+      timeRemaining: 120 // 2 minutes per turn
     });
 
     // Clear any existing timer
@@ -274,12 +274,12 @@ const handleTurnExpiration = async (debateId, debateRooms, io, supabase) => {
       debateRoom.turnTimer = null;
     }
 
-    // Set new turn timer with 10 seconds for testing
-    console.log(`[TIMER EXPIRED] Setting new turn timer for 10 seconds`);
+    // Set new turn timer with 2 minutes
+    console.log(`[TIMER EXPIRED] Setting new turn timer for 2 minutes`);
     debateRoom.turnTimer = setTimeout(() => {
       // Pass necessary arguments to the handler
       handleTurnExpiration(debateId, debateRooms, io, supabase);
-    }, 10000); // 10 seconds turn timer for testing
+    }, 120000); // 2 minutes turn timer
   } catch (error) {
     console.error(`[TIMER EXPIRED] Error handling turn expiration:`, error);
   } finally {
@@ -323,11 +323,11 @@ const startDebateAfterCountdown = (debateId, allParticipants, debateRooms, io, s
   console.log(`[DEBATE START] First turn is 'pro' (affirmative)`);
   console.log(`[DEBATE START] Debate structure: ${JSON.stringify(debateRoom.debateStructure)}`);
 
-  // Initialize turn timer with 10 seconds for testing
+  // Initialize turn timer with 2 minutes
   debateRoom.turnTimer = setTimeout(() => {
     // Pass necessary arguments to the handler
     handleTurnExpiration(debateId, debateRooms, io, supabase);
-  }, 10000); // 10 seconds turn timer for testing
+  }, 120000); // 2 minutes turn timer
 
   // Notify clients that debate has started
   io.to(debateId).emit('debate_start', {
@@ -336,7 +336,7 @@ const startDebateAfterCountdown = (debateId, allParticipants, debateRooms, io, s
   });
 
   console.log(`[DEBATE START] Debate ${debateId} started with roles:`, debateRoom.roles);
-  console.log(`[DEBATE START] Turn timer set for 10 seconds`);
+  console.log(`[DEBATE START] Turn timer set for 2 minutes`);
 };
 
 
