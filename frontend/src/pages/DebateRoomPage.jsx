@@ -100,11 +100,15 @@ const DebateRoomPage = () => {
   const getUserId = () => {
     // If user is authenticated, use the actual user ID
     if (isAuthenticated && user) {
-      return user;
+      return user.id;
     }
-    
-    // Generate a fallback random ID if not authenticated
-    return user;
+    // Fallback to localStorage for backward compatibility or guest users
+    let userId = localStorage.getItem('userId');
+    if (!userId) {
+      userId = 'guest_' + Math.random().toString(36).substring(2, 9);
+      localStorage.setItem('userId', userId);
+    }
+    return userId;
   };
   
   // Fetch debate details
