@@ -41,7 +41,7 @@ const DebateRoomPage = () => {
   const [debateRole, setDebateRole] = useState(null); // 'pro' or 'con'
   const [speakingTurn, setSpeakingTurn] = useState(null); // 'pro' or 'con'
   const [countdown, setCountdown] = useState(5);
-  const [turnTimer, setTurnTimer] = useState(10); // 10 seconds per turn for testing
+  const [turnTimer, setTurnTimer] = useState(120); // 2 minutes per turn
   
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -297,15 +297,15 @@ const DebateRoomPage = () => {
         console.log(`My role is: ${roles[userId]}`);
       }
       
-      // Initialize turn timer with 10 seconds for testing
-      setTurnTimer(10);
+      // Initialize turn timer with 2 minutes
+      setTurnTimer(120);
     });
     
     // Handle speaking turn changes
     socketRef.current.on('speaking_turn', ({ turn, timeRemaining }) => {
       console.log(`[Socket] Speaking turn changed to: ${turn} with ${timeRemaining} seconds remaining`);
       setSpeakingTurn(turn);
-      setTurnTimer(timeRemaining || 10); // Use 10 seconds as default if timeRemaining is not provided
+      setTurnTimer(timeRemaining || 120); // Use 2 minutes as default if timeRemaining is not provided
       
       // Reset the turn change request flag
       turnChangeRequestRef.current = false;
