@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../supabaseClient';
+const API_URL = import.meta.env.VITE_API_URL;
 
 /**
  * CreateDebatePage component - form to create a new debate topic
@@ -15,6 +16,7 @@ const CreateDebatePage = () => {
   const [error, setError] = useState(null);
   const navigate = useNavigate();
   const { user,isAuthenticated } = useAuth();
+
 
   // Fetch categories on component mount
   useEffect(() => {
