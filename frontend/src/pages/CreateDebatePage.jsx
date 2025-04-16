@@ -15,7 +15,8 @@ const CreateDebatePage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
+  const { user,isAuthenticated } = useAuth();
+
 
   // Fetch categories on component mount
   useEffect(() => {
