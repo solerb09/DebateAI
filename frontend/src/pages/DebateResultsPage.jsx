@@ -61,7 +61,7 @@ const DebateResultsPage = () => {
                 console.log(`[RESULTS] Transcription ${index + 1}:`);
                 console.log(`[RESULTS] - Role: ${transcript.role}`);
                 console.log(`[RESULTS] - User ID: ${transcript.user_id}`);
-                console.log(`[RESULTS] - User Name: ${transcript.user?.full_name || transcript.user?.email || 'Unknown'}`);
+                console.log(`[RESULTS] - User Name: ${transcript.user?.username || transcript.user?.email || 'Unknown'}`);
                 console.log(`[RESULTS] - Transcript Length: ${transcript.transcript?.length || 0} chars`);
                 console.log(`[RESULTS] - Created: ${new Date(transcript.created_at).toLocaleString()}`);
               });
