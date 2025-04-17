@@ -125,6 +125,27 @@
   text-align: center;
 }
 
+.no-debates {
+  text-align: center;
+  padding: 48px;
+  background: #F9FAFB;
+  border-radius: 12px;
+  margin-bottom: 48px;
+}
+
+.no-debates p {
+  color: #6B7280;
+  margin-bottom: 24px;
+  font-size: 18px;
+}
+
+.loading {
+  text-align: center;
+  padding: 48px;
+  color: #6B7280;
+  font-size: 18px;
+}
+
 /* Responsive Design */
 @media (max-width: 1024px) {
   .hero-section {

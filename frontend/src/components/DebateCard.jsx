@@ -9,14 +9,13 @@ const DebateCard = ({
   opponent,
   duration,
   datetime,
-  participants = "2/2"
+  participants = "2/2",
+  onClick
 }) => {
   const getStatusStyle = (status) => {
     switch (status.toLowerCase()) {
       case 'live':
         return 'status-live';
-      case 'upcoming':
-        return 'status-upcoming';
       case 'completed':
         return 'status-completed';
       default:
@@ -25,7 +24,7 @@ const DebateCard = ({
   };
 
   return (
-    <div className="debate-card">
+    <div className="debate-card" onClick={onClick} role="button" tabIndex={0}>
       <div className="debate-card-header">
         <span className={`debate-status ${getStatusStyle(status)}`}>
           {status}
@@ -62,6 +61,12 @@ const DebateCard = ({
           {duration}
         </span>
         <span className="debate-datetime">{datetime}</span>
+      </div>
+
+      <div className="debate-action">
+        <button className={`debate-button ${status.toLowerCase()}`}>
+          {status === 'Live' ? 'Join Debate' : 'View Results'}
+        </button>
       </div>
     </div>
   );
