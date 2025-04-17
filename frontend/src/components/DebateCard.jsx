@@ -13,13 +13,28 @@ const DebateCard = ({
   onClick
 }) => {
   const getStatusStyle = (status) => {
-    switch (status.toLowerCase()) {
-      case 'live':
+    switch (status) {
+      case 'Live':
         return 'status-live';
       case 'completed':
         return 'status-completed';
+      case 'Upcoming':
+        return 'status-upcoming';
       default:
         return '';
+    }
+  };
+
+  const getButtonText = (status) => {
+    switch (status) {
+      case 'Live':
+        return 'Join Debate';
+      case 'completed':
+        return 'View Results';
+      case 'Upcoming':
+        return 'Join Debate';
+      default:
+        return 'View Debate';
     }
   };
 
@@ -65,7 +80,7 @@ const DebateCard = ({
 
       <div className="debate-action">
         <button className={`debate-button ${status.toLowerCase()}`}>
-          {status === 'Live' ? 'Join Debate' : 'View Results'}
+          {getButtonText(status)}
         </button>
       </div>
     </div>

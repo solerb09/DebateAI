@@ -14,7 +14,7 @@ const DebateListPage = () => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('Upcoming');
+  const [activeTab, setActiveTab] = useState('Live Now');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [sortBy, setSortBy] = useState('Newest First');
   const navigate = useNavigate();
@@ -98,13 +98,27 @@ const DebateListPage = () => {
           const proParticipant = participants.find(p => p.side === 'pro');
           const conParticipant = participants.find(p => p.side === 'con');
 
+          // Map database status to DebateCard status
+          let cardStatus;
+          switch(room.status) {
+            case 'active':
+              cardStatus = 'Live';
+              break;
+            case 'completed':
+              cardStatus = 'completed';
+              break;
+            case 'waiting':
+            default:
+              cardStatus = 'Upcoming';
+          }
+
           return {
             id: topic.id,
             roomId: room.id,
             title: topic.title,
             description: topic.description,
             category: topic.categories?.name,
-            status: room.status || 'upcoming',
+            status: cardStatus,
             proponent: proParticipant ? (userMap.get(proParticipant.user_id) || 'Anonymous') : 'Waiting for opponent',
             opponent: conParticipant ? (userMap.get(conParticipant.user_id) || 'Anonymous') : 'Waiting for opponent',
             participantCount: `${participants.length}/2`,
@@ -117,9 +131,9 @@ const DebateListPage = () => {
         const filteredDebates = processedDebates.filter(debate => {
           switch (activeTab) {
             case 'Live Now':
-              return debate.status === 'active';
+              return debate.status === 'Live';
             case 'Upcoming':
-              return debate.status === 'upcoming' || debate.status === 'waiting';
+              return debate.status === 'Upcoming';
             case 'Past Debates':
               return debate.status === 'completed';
             default:
@@ -139,12 +153,12 @@ const DebateListPage = () => {
     fetchDebates();
   }, [activeTab, selectedCategory, sortBy]);
 
-  const handleJoinDebate = (debateId, status) => {
-    // Navigate to the appropriate page based on debate status
-    if (status === 'completed') {
-      navigate(`/debates/${debateId}/results`);
+  const handleDebateClick = (debate) => {
+    // If debate is completed, go to results page, otherwise go to debate room
+    if (debate.status === 'completed') {
+      navigate(`/debates/${debate.roomId}/results`);
     } else {
-      navigate(`/debates/${debateId}`);
+      navigate(`/debates/${debate.roomId}`);
     }
   };
 
@@ -191,7 +205,7 @@ const DebateListPage = () => {
               <DebateCard 
                 key={debate.id}
                 {...debate}
-                onClick={() => navigate(`/debates/${debate.roomId}`)}
+                onClick={() => handleDebateClick(debate)}
               />
             ))}
           </div>

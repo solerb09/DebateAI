@@ -215,10 +215,10 @@ const DebateResultsPage = () => {
     if (transcriptions.length > 0) {
       if (role === 'pro') {
         const proTranscription = transcriptions.find(t => t.role === 'pro');
-        return proTranscription?.user?.full_name || proTranscription?.user?.email || 'Pro Speaker';
+        return proTranscription?.user?.username || proTranscription?.user?.email || 'Pro Speaker';
       } else {
         const conTranscription = transcriptions.find(t => t.role === 'con');
-        return conTranscription?.user?.full_name || conTranscription?.user?.email || 'Con Speaker';
+        return conTranscription?.user?.username || conTranscription?.user?.email || 'Con Speaker';
       }
     }
     
