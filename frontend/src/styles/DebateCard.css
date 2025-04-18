@@ -1,0 +1,159 @@
+.debate-card {
+  background: #FFFFFF;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 24px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  position: relative;
+}
+
+.debate-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.debate-card:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+.debate-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.debate-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.status-live {
+  background-color: #FEE2E2;
+  color: #DC2626;
+}
+
+.status-upcoming {
+  background-color: #E0E7FF;
+  color: #4F46E5;
+}
+
+.status-completed {
+  background-color: #F3F4F6;
+  color: #6B7280;
+}
+
+.debate-participants {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #6B7280;
+  font-size: 14px;
+}
+
+.debate-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.debate-description {
+  color: #6B7280;
+  font-size: 14px;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.debate-participants-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.participant {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.participant .label {
+  font-weight: 500;
+  font-size: 14px;
+  min-width: 40px;
+}
+
+.participant.pro .label {
+  color: #059669;
+}
+
+.participant.con .label {
+  color: #DC2626;
+}
+
+.participant .name {
+  color: #374151;
+  font-size: 14px;
+}
+
+.debate-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #6B7280;
+  font-size: 14px;
+}
+
+.debate-duration {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.debate-datetime {
+  color: #6B7280;
+}
+
+.debate-action {
+  margin-top: 20px;
+  text-align: right;
+}
+
+.debate-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.debate-button.live {
+  background-color: #DC2626;
+  color: white;
+}
+
+.debate-button.live:hover {
+  background-color: #B91C1C;
+}
+
+.debate-button.completed {
+  background-color: #059669;
+  color: white;
+}
+
+.debate-button.completed:hover {
+  background-color: #047857;
+} 

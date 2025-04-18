@@ -7,7 +7,8 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const cors = require('cors');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 console.log("ci cd CLIENT_URL is set to:", process.env.CLIENT_URL);
 
@@ -16,6 +17,7 @@ const { createClient } = require('@supabase/supabase-js');
 // Import route handlers
 const debateRoutes = require('./routes/debateRoutes');
 const audioRoutes = require('./routes/audioRoutes');
+const gradingRoutes = require('./routes/aiGrading');
 
 // Import refactored modules
 const debateLogic = require('./lib/debateLogic');
@@ -74,6 +76,7 @@ const updateDebateStatus = (debateId, newStatus) => {
 // API routes
 app.use('/api/debates', debateRoutes);
 app.use('/api/audio', audioRoutes);
+app.use('/api/grading', gradingRoutes)
 
 // Basic route
 app.get('/', (req, res) => {
