@@ -294,7 +294,7 @@ const DebateRoomPage = () => {
       // Get our role from the roles object
       if (roles && user.id) {
         setDebateRole(roles[user.id]);
-        console.log(`My role is: ${roles[userId]}`);
+        console.log(`My role is: ${roles[user.id]}`);
       }
       
       // Initialize turn timer with 10 seconds
