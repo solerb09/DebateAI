@@ -1,67 +1,118 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import DefaultAvatar from './DefaultAvatar';
+import Button from './Button';
+import '../styles/Header.css';
 
 const Header = () => {
-  // Get the complete auth state
-  const { user, profile, isAuthenticated, loading, logout } = useAuth();
-  
-  // For debugging
-  console.log("Auth state in Header:", { isAuthenticated, userId: user?.id });
+  const { user, isAuthenticated, logout } = useAuth();
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const toggleDropdown = () => {
+    setIsDropdownOpen(!isDropdownOpen);
+  };
+
+  const handleLogout = () => {
+    logout();
+    setIsDropdownOpen(false);
+  };
 
   return (
     <header className="header">
-      <div className="container">
-        <nav className="nav">
-          <Link to="/" className="nav-logo">
-            Debate Platform
-          </Link>
-          <ul className="nav-links">
-            {/* Always visible links */}
-            <li className="nav-link">
-              <Link to="/debates">Debates</Link>
-            </li>
-            
-            {/* Protected links */}
-            {isAuthenticated && (
-              <li className="nav-link">
-                <Link to="/debates/create">Create Debate</Link>
-              </li>
-            )}
-            
-            {/* Show Test Call link */}
-            <li className="nav-link">
-            </li>
-            
-            {/* Auth links */}
-            {isAuthenticated ? (
-              <>
-                <li className="nav-link">
-                  <Link to="/profile">
-                    {profile?.username || user?.email?.split('@')[0] || 'Profile'}
-                  </Link>
-                </li>
-                <li className="nav-link">
-                  <button 
-                    onClick={() => logout()}
-                    className="nav-button"
-                  >
-                    Sign Out
-                  </button>
-                </li>
-              </>
-            ) : (
-              <>
-                <li className="nav-link">
-                  <Link to="/login">Login</Link>
-                </li>
-                <li className="nav-link">
-                  <Link to="/signup">Sign Up</Link>
-                </li>
-              </>
-            )}
-          </ul>
+      <div className="header-container">
+        <Link to="/" className="logo">
+          <span className="logo-text-primary">Debate</span>
+          <span className="logo-text-secondary">Ai</span>
+        </Link>
+
+        <nav className="nav-menu">
+          <Link to="/" className="nav-link">Home</Link>
+          <Link to="/debates" className="nav-link">Debates</Link>
+          <Link to="/leaderboard" className="nav-link">Leaderboard</Link>
+          <Link to="/about" className="nav-link">About</Link>
         </nav>
+
+        <div className="auth-section">
+          {isAuthenticated ? (
+            <div className="profile-dropdown" ref={dropdownRef}>
+              <button className="profile-button" onClick={toggleDropdown}>
+                {user?.avatar_url ? (
+                  <img 
+                    src={user.avatar_url} 
+                    alt="Profile" 
+                    className="profile-image"
+                  />
+                ) : (
+                  <DefaultAvatar />
+                )}
+              </button>
+              {isDropdownOpen && (
+                <div className="dropdown-menu">
+                  <Button
+                    as="link"
+                    href="/profile"
+                    variant="text"
+                    onClick={() => setIsDropdownOpen(false)}
+                    className="dropdown-item"
+                  >
+                    My Profile
+                  </Button>
+                  <Button
+                    as="link"
+                    href="/settings"
+                    variant="text"
+                    onClick={() => setIsDropdownOpen(false)}
+                    className="dropdown-item"
+                  >
+                    Settings
+                  </Button>
+                  <Button
+                    variant="text"
+                    onClick={handleLogout}
+                    className="dropdown-item"
+                  >
+                    Logout
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="auth-buttons">
+              <Button
+                as="link"
+                href="/login"
+                variant="secondary"
+                size="medium"
+              >
+                Log in
+              </Button>
+              <Button
+                as="link"
+                href="/signup"
+                variant="primary"
+                size="medium"
+              >
+                Sign up
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

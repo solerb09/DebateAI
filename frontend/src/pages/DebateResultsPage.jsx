@@ -64,7 +64,7 @@ const DebateResultsPage = () => {
                 console.log(`[RESULTS] Transcription ${index + 1}:`);
                 console.log(`[RESULTS] - Role: ${transcript.role}`);
                 console.log(`[RESULTS] - User ID: ${transcript.user_id}`);
-                console.log(`[RESULTS] - User Name: ${transcript.user?.full_name || transcript.user?.email || 'Unknown'}`);
+                console.log(`[RESULTS] - User Name: ${transcript.user?.username || transcript.user?.email || 'Unknown'}`);
                 console.log(`[RESULTS] - Transcript Length: ${transcript.transcript?.length || 0} chars`);
                 console.log(`[RESULTS] - Created: ${new Date(transcript.created_at).toLocaleString()}`);
               });
@@ -223,10 +223,10 @@ const DebateResultsPage = () => {
     if (transcriptions.length > 0) {
       if (role === 'pro') {
         const proTranscription = transcriptions.find(t => t.role === 'pro');
-        return proTranscription?.user?.full_name || proTranscription?.user?.email || 'Pro Speaker';
+        return proTranscription?.user?.username || proTranscription?.user?.email || 'Pro Speaker';
       } else {
         const conTranscription = transcriptions.find(t => t.role === 'con');
-        return conTranscription?.user?.full_name || conTranscription?.user?.email || 'Con Speaker';
+        return conTranscription?.user?.username || conTranscription?.user?.email || 'Con Speaker';
       }
     }
     

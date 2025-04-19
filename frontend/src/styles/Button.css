@@ -1,0 +1,93 @@
+.custom-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 500;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  font-family: inherit;
+}
+
+/* Size variants */
+.button-small {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.button-medium {
+  padding: 0.5rem 1rem;
+  font-size: 0.9375rem;
+}
+
+.button-large {
+  padding: 0.625rem 1.25rem;
+  font-size: 1rem;
+}
+
+/* Style variants */
+.button-primary {
+  background-color: #000000;
+  color: #ffffff;
+}
+
+.button-primary:hover:not(:disabled) {
+  background-color: #333333;
+}
+
+.button-secondary {
+  background-color: transparent;
+  color: #4A4A4A;
+}
+
+.button-secondary:hover:not(:disabled) {
+  color: #000000;
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.button-outline {
+  background-color: transparent;
+  color: #000000;
+  border: 1px solid #000000;
+}
+
+.button-outline:hover:not(:disabled) {
+  background-color: #000000;
+  color: #ffffff;
+}
+
+.button-text {
+  background-color: transparent;
+  color: #4A4A4A;
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.button-text:hover:not(:disabled) {
+  color: #000000;
+  background-color: transparent;
+}
+
+/* Full width variant */
+.button-full-width {
+  width: 100%;
+}
+
+/* Disabled state */
+.custom-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Focus state */
+.custom-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Active state */
+.custom-button:active {
+  transform: translateY(1px);
+} 
