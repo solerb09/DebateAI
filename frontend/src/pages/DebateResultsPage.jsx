@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import '../styles/GradingResults.css';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -17,6 +18,7 @@ const DebateResultsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [debugInfo, setDebugInfo] = useState({});
+  const [gradingResults, setGradingResults] = useState(null);
   
   // Fetch debate details and transcriptions
   useEffect(() => {
@@ -33,8 +35,9 @@ const DebateResultsPage = () => {
         const debateResponse = await fetch(`${API_URL}/api/debates/${debateId}`);
         
         if (!debateResponse.ok) {
-          console.error(`[RESULTS] Error ${debateResponse.status} fetching debate details`);
-          throw new Error(`Server responded with ${debateResponse.status}`);
+          const errorText = await debateResponse.text();
+          console.error(`[RESULTS] Error ${debateResponse.status} fetching debate details:`, errorText);
+          throw new Error(`Server responded with ${debateResponse.status}: ${errorText}`);
         }
         
         const debateData = await debateResponse.json();
@@ -112,6 +115,11 @@ const DebateResultsPage = () => {
         setDebugInfo(debugData);
         setLoading(false);
         console.log(`[RESULTS] ========= RESULTS LOADING COMPLETE =========`);
+        
+        // After fetching debate data, fetch grading results
+        await fetchGradingResults()
+        console.log(`[RESULTS] ========= GRADING RESULTS FETCHED =========`);
+        
       } catch (error) {
         console.error('[RESULTS] Error fetching debate data:', error);
         setError('Failed to load debate information');
@@ -226,6 +234,27 @@ const DebateResultsPage = () => {
     return role === 'pro' ? 'Pro Speaker' : 'Con Speaker';
   };
   
+  const fetchGradingResults = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/grading/${debateId}/results`);
+      if (!response.ok) {
+        // If results aren't ready, trigger grading
+        await fetch(`${API_URL}/api/grading/${debateId}`, {
+          method: 'POST'
+        });
+        // Wait a bit and try again
+        setTimeout(fetchGradingResults, 3000);
+        return;
+      }
+      const data = await response.json();
+      if (data.success) {
+        setGradingResults(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching grading results:', error);
+    }
+  };
+  
   if (loading) {
     return <div className="loading">Loading debate results...</div>;
   }
@@ -294,6 +323,87 @@ const DebateResultsPage = () => {
         <div className="no-transcriptions-message" style={{ textAlign: 'center', margin: '2rem 0' }}>
           <h3>No transcriptions available for this debate</h3>
           <p>Transcriptions will appear here once the debate is completed and recordings are processed.</p>
+        </div>
+      )}
+      
+      {gradingResults && (
+        <div className="grading-results">
+          <h2>AI Grading Results</h2>
+          
+          <div className="grading-summary">
+            <h3>Debate Summary</h3>
+            <p>{gradingResults.summary}</p>
+          </div>
+          
+          <div className="scores-container">
+            <div className="score-card">
+              <h3>{getSideTitle('pro')}</h3>
+              <div className="score-details">
+                <p>Argument Quality: {gradingResults.pro_scores.argument_quality}/10</p>
+                <p>Communication: {gradingResults.pro_scores.communication_skills}/10</p>
+                <p>Topic Understanding: {gradingResults.pro_scores.topic_understanding}/10</p>
+                <p className="total-score">Total: {gradingResults.pro_scores.total}/30</p>
+              </div>
+            </div>
+            
+            <div className="score-card">
+              <h3>{getSideTitle('con')}</h3>
+              <div className="score-details">
+                <p>Argument Quality: {gradingResults.con_scores.argument_quality}/10</p>
+                <p>Communication: {gradingResults.con_scores.communication_skills}/10</p>
+                <p>Topic Understanding: {gradingResults.con_scores.topic_understanding}/10</p>
+                <p className="total-score">Total: {gradingResults.con_scores.total}/30</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="feedback-section">
+            <div className="strengths">
+              <h3>Strengths</h3>
+              <div className="pro-strengths">
+                <h4>{getSideTitle('pro')}</h4>
+                <ul>
+                  {gradingResults.strengths.pro.map((strength, index) => (
+                    <li key={index}>{strength}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="con-strengths">
+                <h4>{getSideTitle('con')}</h4>
+                <ul>
+                  {gradingResults.strengths.con.map((strength, index) => (
+                    <li key={index}>{strength}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            
+            <div className="improvements">
+              <h3>Areas for Improvement</h3>
+              <div className="pro-improvements">
+                <h4>{getSideTitle('pro')}</h4>
+                <ul>
+                  {gradingResults.improvements.pro.map((improvement, index) => (
+                    <li key={index}>{improvement}</li>
+                  ))}
+                </ul>
+              </div>
+              <div className="con-improvements">
+                <h4>{getSideTitle('con')}</h4>
+                <ul>
+                  {gradingResults.improvements.con.map((improvement, index) => (
+                    <li key={index}>{improvement}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {!gradingResults && transcriptions.length > 0 && (
+        <div className="grading-status">
+          <p>AI grading in progress...</p>
         </div>
       )}
       

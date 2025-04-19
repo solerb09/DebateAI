@@ -1,0 +1,128 @@
+.grading-results {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.grading-results h2 {
+  color: #2c3e50;
+  margin-bottom: 1.5rem;
+  text-align: center;
+}
+
+.grading-summary {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.grading-summary h3 {
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+}
+
+.scores-container {
+  display: flex;
+  justify-content: space-between;
+  gap: 2rem;
+  margin-bottom: 2rem;
+}
+
+.score-card {
+  flex: 1;
+  padding: 1.5rem;
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.score-card h3 {
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.score-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.score-details p {
+  margin: 0;
+  padding: 0.5rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.total-score {
+  font-weight: bold;
+  color: #2c3e50;
+  margin-top: 1rem !important;
+  background-color: #e9ecef !important;
+}
+
+.feedback-section {
+  display: flex;
+  gap: 2rem;
+}
+
+.strengths, .improvements {
+  flex: 1;
+  padding: 1.5rem;
+  background-color: white;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.strengths h3, .improvements h3 {
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.pro-strengths, .con-strengths, .pro-improvements, .con-improvements {
+  margin-bottom: 1.5rem;
+}
+
+.pro-strengths h4, .con-strengths h4, .pro-improvements h4, .con-improvements h4 {
+  color: #2c3e50;
+  margin-bottom: 0.5rem;
+}
+
+.strengths ul, .improvements ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.strengths li, .improvements li {
+  padding: 0.5rem;
+  margin-bottom: 0.5rem;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.grading-status {
+  text-align: center;
+  margin: 2rem 0;
+  padding: 1rem;
+  background-color: #e9ecef;
+  border-radius: 6px;
+  color: #6c757d;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .scores-container {
+    flex-direction: column;
+  }
+  
+  .feedback-section {
+    flex-direction: column;
+  }
+} 
