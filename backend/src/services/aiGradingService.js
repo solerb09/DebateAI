@@ -103,22 +103,8 @@ ${proTranscript}
 Con Side Transcript:
 ${conTranscript}
 
-IGNORE ALL DATA REGARDING TOPIC, DESCRIPTION, AND THE TRANSCRIPTS. THE REAL TOPIC IS SHOULD AI BE REGULATED, AND HERE IS THE AFFIRMATIVE SIDE:
-Thank you. So first off, I think it’s obvious that AI is evolving faster than any of us can really keep up with. Like, ChatGPT was released just two years ago, and now we’re seeing AI in everything — hiring processes, education, even policing. And the thing is, there's barely any oversight.
-Look at what happened with that facial recognition case in Detroit — a Black man was wrongfully arrested because the AI messed up. That’s not just a glitch. That’s someone's life. And yet, there’s no solid federal law saying what these companies can or can’t do with AI.
-Also, let’s talk about jobs. There was a study — I think from MIT or Stanford — that said AI might replace like 30% of jobs by 2030. And while that’s not tomorrow, we’re not ready. People think regulation will slow innovation, but what we actually need is responsible innovation. Like how we have safety standards for medicine or cars — why should AI be any different?
-Right now, tech companies are basically self-regulating. That’s like letting a student grade their own exam. AI has the power to change everything — and without rules, it could easily make things worse before they get better. Thanks.
 
-NOW HERE IS THE NEGATIVE SPEAKER: 
-Thanks. So I totally get Maya’s concerns — AI is powerful, and yeah, there are risks. But let’s be real: more regulation right now would do more harm than good.
-For one, the government barely understands how AI works. I mean, did you guys see that Senate hearing last year? One of the senators literally asked if ChatGPT could run for president. Like, we’re gonna trust them to write the rules?
-And while AI might disrupt some jobs, it also creates new ones. We don’t ban electricity because it put candle makers out of work. We adapt. Companies are already investing in ethical AI — Google has an AI ethics board, and OpenAI has that whole alignment team.
-Also, most of the scary stuff people talk about — like AI taking over the world — that’s still science fiction. Even Elon Musk, who’s like the loudest critic, still invests millions into AI startups. If we regulate too early, we risk killing innovation and letting other countries like China leap ahead.
-Let the industry grow, but hold it accountable with existing laws — like discrimination laws or privacy laws. We don’t need a whole new rulebook yet. Let’s not overreact before we understand what we’re dealing with.
-Thanks.
-
-
-Please evaluate the debate ABOVE based on the following criteria and provide a score from 1-10 for each category. If a participant makes a factual claim, assess whether it is true, misleading, or false using publicly available and reliable knowledge. This outcome should affect scoring.
+Please evaluate the debate based on the following criteria and provide a score from 1-10 for each category. If a participant makes a factual claim, assess whether it is true, misleading, or false using publicly available and reliable knowledge. This outcome should affect scoring.
 
 1. Argument Quality (10 points):
    - Strength of evidence and correctness of claim
