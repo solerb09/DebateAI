@@ -699,7 +699,10 @@ class WebRTCService {
         formData.append('streamType', 'local');
         
         console.log('Uploading local recording...');
-        const response = await fetch('/api/audio/upload', {
+        // Construct the full API URL using the environment variable
+        const apiUrl = `${import.meta.env.VITE_API_URL}/api/audio/upload`;
+        console.log(`Uploading to: ${apiUrl}`); // Log the actual URL being used
+        const response = await fetch(apiUrl, {
           method: 'POST',
           body: formData
         });
@@ -708,11 +711,31 @@ class WebRTCService {
           results.local = await response.json();
           console.log('Local recording uploaded successfully');
         } else {
-          throw new Error(`Server responded with ${response.status}`);
+          // Try to read the response body for more details, even if not JSON
+          const errorText = await response.text(); 
+          console.error(`Server responded with ${response.status}: ${errorText}`);
+          // Check if the error text looks like HTML
+          if (errorText.trim().startsWith('<!DOCTYPE') || errorText.trim().startsWith('<html')) {
+            throw new Error(`Server responded with status ${response.status} and returned HTML, not JSON. Check API endpoint configuration.`);
+          } else {
+            // Attempt to parse as JSON if it wasn't HTML, might still fail
+            try {
+              results.local = { error: JSON.parse(errorText) };
+            } catch (jsonError) {
+              // If JSON parsing fails, use the raw text
+              results.local = { error: `Server responded with ${response.status}: ${errorText}` };
+            }
+          }
+          // Re-throw the specific error if it was HTML
+          if (errorText.trim().startsWith('<!DOCTYPE') || errorText.trim().startsWith('<html')) {
+             throw new Error(`Server responded with status ${response.status} and returned HTML.`);
+          }
         }
       } catch (error) {
-        console.error('Failed to upload local recording:', error);
-        results.local = { error: error.message };
+        // Log the specific error caught
+        console.error('Failed to upload local recording:', error); 
+        // Ensure the error message is captured in the results
+        results.local = { error: error.message || 'Upload failed' }; 
       }
     }
     
@@ -758,4 +781,4 @@ class WebRTCService {
   }
 }
 
-export default WebRTCService; 
+export default WebRTCService;
