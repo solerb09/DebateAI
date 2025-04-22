@@ -1,0 +1,132 @@
+.score-cards-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  margin: 32px auto;
+  max-width: 900px;
+  padding: 0 16px;
+}
+
+.score-card {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 32px;
+  border: 1px solid #eaeaea;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.score-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid #eaeaea;
+}
+
+.position-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.position-title h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0;
+}
+
+.winner-badge {
+  background: #e8f5e9;
+  color: #2e7d32;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.participant-info {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #f5f5f5;
+}
+
+.participant-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.participant-name {
+  font-size: 24px;
+  font-weight: 600;
+  color: #000000;
+  margin: 0;
+}
+
+.participant-title {
+  font-size: 16px;
+  color: #666666;
+}
+
+.overall-score {
+  margin-top: 8px;
+}
+
+.score-label {
+  font-size: 16px;
+  color: #000000;
+  margin-bottom: 8px;
+}
+
+.score-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: #000000;
+  margin-bottom: 8px;
+}
+
+.score-bar {
+  height: 8px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.score-fill {
+  height: 100%;
+  background: #000000;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.score-details {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.score-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.score-item .metric {
+  font-size: 16px;
+  color: #000000;
+}
+
+.score-item .value {
+  font-size: 16px;
+  font-weight: 500;
+  color: #000000;
+} 
