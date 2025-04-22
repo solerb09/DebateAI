@@ -258,15 +258,11 @@ const DebateResultsPage = () => {
             <h2>{getSideTitle('pro')}</h2>
             {scores.ai > 0 && <div className="score">{scores.ai}</div>}
             
-            {getKeyPoints('pro').length > 0 ? (
-              <>
-                <h3>Key Points</h3>
-                <ul className="key-points">
-                  {getKeyPoints('pro').map((point, index) => (
-                    <li key={index}>{point}</li>
-                  ))}
-                </ul>
-              </>
+            {transcriptions.find(t => t.role === 'pro')?.transcript ? (
+              <div className="transcript">
+                <h3>Transcript</h3>
+                <p>{transcriptions.find(t => t.role === 'pro').transcript}</p>
+              </div>
             ) : (
               <p>No transcript available for the Pro side.</p>
             )}
@@ -276,15 +272,11 @@ const DebateResultsPage = () => {
             <h2>{getSideTitle('con')}</h2>
             {scores.human > 0 && <div className="score">{scores.human}</div>}
             
-            {getKeyPoints('con').length > 0 ? (
-              <>
-                <h3>Key Points</h3>
-                <ul className="key-points">
-                  {getKeyPoints('con').map((point, index) => (
-                    <li key={index}>{point}</li>
-                  ))}
-                </ul>
-              </>
+            {transcriptions.find(t => t.role === 'con')?.transcript ? (
+              <div className="transcript">
+                <h3>Transcript</h3>
+                <p>{transcriptions.find(t => t.role === 'con').transcript}</p>
+              </div>
             ) : (
               <p>No transcript available for the Con side.</p>
             )}
