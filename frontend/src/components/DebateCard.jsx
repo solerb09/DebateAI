@@ -9,7 +9,7 @@ const DebateCard = ({
   opponent,
   duration,
   datetime,
-  participants = "2/2",
+  participants = "0/2",
   onClick
 }) => {
   const getStatusStyle = (status) => {
