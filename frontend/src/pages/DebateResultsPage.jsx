@@ -506,39 +506,6 @@ const DebateResultsPage = () => {
         />
       )}
       
-      {gradingError && (
-        <div className="error-banner" style={{
-          backgroundColor: '#fff3f3',
-          border: '1px solid #ffcdd2',
-          borderRadius: '8px',
-          padding: '16px',
-          margin: '16px 0',
-          textAlign: 'center'
-        }}>
-          <p style={{ color: '#d32f2f', marginBottom: '12px' }}>{gradingError}</p>
-          {gradingStatus === 'failed' && (
-            <button 
-              className="btn btn-primary"
-              onClick={startGrading}
-              style={{
-                backgroundColor: '#2196f3',
-                color: 'white',
-                border: 'none',
-                padding: '8px 16px',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontWeight: '500',
-                transition: 'background-color 0.2s'
-              }}
-              onMouseOver={(e) => e.target.style.backgroundColor = '#1976d2'}
-              onMouseOut={(e) => e.target.style.backgroundColor = '#2196f3'}
-            >
-              Retry Grading
-            </button>
-          )}
-        </div>
-      )}
-
       {gradingStatus === 'processing' && (
         <div className="grading-status">
           <p>AI is analyzing the debate...</p>
