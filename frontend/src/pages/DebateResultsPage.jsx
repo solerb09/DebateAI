@@ -19,12 +19,9 @@ const DebateResultsPage = () => {
   const { user, isAuthenticated } = useAuth();
   const [debate, setDebate] = useState(null);
   const [transcriptions, setTranscriptions] = useState([]);
-  const [scores, setScores] = useState({ ai: 0, human: 0 });
-  const [winner, setWinner] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [debugInfo, setDebugInfo] = useState({});
-  const [gradingResults, setGradingResults] = useState(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState('idle');
   const [participants, setParticipants] = useState([]);
   
@@ -86,8 +83,6 @@ const DebateResultsPage = () => {
                 console.log('[RESULTS] Transcriptions are still being processed');
                 setTranscriptionStatus('processing');
                 setTranscriptions([]);
-                setScores({ ai: 0, human: 0 });
-                setWinner(null);
               } else if (responseData.data && responseData.data.length > 0) {
                 console.log(`[RESULTS] Found ${responseData.data.length} transcriptions`);
                 setTranscriptionStatus('completed');
@@ -104,10 +99,6 @@ const DebateResultsPage = () => {
                 
                 setTranscriptions(responseData.data);
                 
-                // Process transcription data for scores
-                console.log(`[RESULTS] Processing transcription data for scoring...`);
-                processTranscriptionData(responseData.data);
-                
                 // Update debug info
                 debugData.foundTranscriptions = responseData.data.length;
                 debugData.transcriptionData = responseData.data.map(t => ({
@@ -122,32 +113,24 @@ const DebateResultsPage = () => {
                 debugData.noTranscriptionsReason = "No data in response or empty data array";
                 setTranscriptionStatus('completed');
                 setTranscriptions([]);
-                setScores({ ai: 0, human: 0 });
-                setWinner(null);
               }
             } else {
               console.warn("[RESULTS] Error fetching transcriptions:", responseData);
               debugData.transcriptionError = responseData;
               setTranscriptionStatus('error');
               setTranscriptions([]);
-              setScores({ ai: 0, human: 0 });
-              setWinner(null);
             }
           } else {
             console.warn("[RESULTS] Error fetching transcriptions:", responseData);
             debugData.transcriptionError = responseData;
             setTranscriptionStatus('error');
             setTranscriptions([]);
-            setScores({ ai: 0, human: 0 });
-            setWinner(null);
           }
         } catch (transcriptError) {
           console.warn('[RESULTS] Error fetching transcription data:', transcriptError);
           debugData.transcriptionException = transcriptError.toString();
           
           setTranscriptions([]);
-          setScores({ ai: 0, human: 0 });
-          setWinner(null);
         }
         
         setDebugInfo(debugData);
@@ -164,58 +147,6 @@ const DebateResultsPage = () => {
     
     fetchDebateData();
   }, [debateId]);
-  
-  // Process transcription data to extract scores
-  const processTranscriptionData = (transcriptions) => {
-    if (!transcriptions || transcriptions.length === 0) {
-      console.log(`[RESULTS] No transcriptions to process`);
-      return;
-    }
-    
-    try {
-      // Find pro and con transcriptions
-      const proTranscription = transcriptions.find(t => t.role === 'pro');
-      const conTranscription = transcriptions.find(t => t.role === 'con');
-      
-      console.log("[RESULTS] Processing transcriptions for scoring:");
-      console.log("[RESULTS] Pro transcription found:", !!proTranscription);
-      console.log("[RESULTS] Con transcription found:", !!conTranscription);
-      
-      // Set scores based on transcript length for now (or some other metric)
-      // In a real implementation, this would come from an AI evaluation
-      if (proTranscription && conTranscription) {
-        const proLength = proTranscription.transcript?.length || 0;
-        const conLength = conTranscription.transcript?.length || 0;
-        
-        console.log(`[RESULTS] Pro transcript length: ${proLength}, Con transcript length: ${conLength}`);
-        
-        // Simple scoring based on length with randomization for testing
-        const proScore = Math.min(100, Math.max(50, 70 + (proLength > conLength ? 15 : 0) + Math.floor(Math.random() * 10)));
-        const conScore = Math.min(100, Math.max(50, 70 + (conLength > proLength ? 15 : 0) + Math.floor(Math.random() * 10)));
-        
-        // Set scores and determine winner
-        setScores({
-          ai: proScore, 
-          human: conScore
-        });
-        
-        // Mock winner declaration - this will be replaced with real AI evaluation later
-        const winnerName = proScore > conScore ? 'AI' : 'Human';
-        setWinner(winnerName);
-        console.log(`[RESULTS] Scores calculated - Pro: ${proScore}, Con: ${conScore}`);
-        console.log(`[RESULTS] Winner determined: ${winnerName}`);
-      } else {
-        // For now, we won't set a mock winner if we don't have both transcripts
-        console.warn("[RESULTS] Missing either pro or con transcription, no scores calculated");
-        setScores({ ai: 0, human: 0 });
-        setWinner(null);
-      }
-    } catch (error) {
-      console.error('[RESULTS] Error processing transcription data:', error);
-      setScores({ ai: 0, human: 0 });
-      setWinner(null);
-    }
-  };
   
   // Extract key points from the transcription
   const getKeyPoints = (role) => {
@@ -313,14 +244,11 @@ const DebateResultsPage = () => {
       if (status === 'completed' && scores) {
         // Transform scores into participants array
         const participantsData = Object.entries(scores).map(([side, data]) => {
-          // Get the username from the transcriptions
           const transcription = transcriptions.find(t => t.role === side);
-          const username = transcription?.user?.username || transcription?.user?.email || 'Unknown Participant';
-
           return {
-            id: data.id || side,
+            id: transcription?.user_id,  // Get user_id from matching transcription
             side: side,
-            username: username,  // Use actual username from transcription data
+            username: transcription?.user?.username || transcription?.user?.email || (side === 'pro' ? 'Pro Speaker' : 'Con Speaker'),
             score_breakdown: {
               argument_quality: {
                 score: data.score_breakdown.scores.argument_quality,
@@ -340,6 +268,7 @@ const DebateResultsPage = () => {
             is_winner: data.is_winner
           };
         });
+
         
         setParticipants(participantsData);
         
@@ -359,7 +288,7 @@ const DebateResultsPage = () => {
       console.error('Error fetching grading status:', error);
       setGradingError(error.message);
     }
-  }, [debateId, pollingTimer]);
+  }, [debateId, pollingTimer, transcriptions]);
 
   // Start grading process
   const startGrading = async () => {
@@ -518,14 +447,8 @@ const DebateResultsPage = () => {
           endTime={debate.end_time}
           duration="1h 30m"
           participants={2}
-          winner={winner ? getSideTitle(winner.toLowerCase() === 'ai' ? 'pro' : 'con') : null}
+          winner={participants.find(p => p.is_winner)?.username}
         />
-      )}
-      
-      {winner && (
-        <div className="winner-announcement">
-          <h2>{winner} has been declared the winner!</h2>
-        </div>
       )}
       
       <div className="score-cards-container">
