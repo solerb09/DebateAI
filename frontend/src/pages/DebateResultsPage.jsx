@@ -365,25 +365,25 @@ const DebateResultsPage = () => {
   // Check grading status when transcriptions are ready
   useEffect(() => {
     if (transcriptionStatus === 'completed' && transcriptions.length > 0) {
+      // Skip if already completed
+      if (gradingStatus === 'completed') {
+        return;
+      }
+
       // First check current status
       fetchGradingStatus().then(() => {
-        console.log("[GRADING] Current status:", gradingStatus);
-        
-        // Only proceed with grading if not already completed
+        // Skip further processing if completed
         if (gradingStatus === 'completed') {
-          console.log("[GRADING] Grading already completed, skipping...");
           return;
         }
         
         switch (gradingStatus) {
           case 'pending':
           case 'failed':
-            // Only start grading if we're in a valid state
             console.log("[GRADING] Starting grading process...");
             startGrading();
             break;
           case 'processing':
-            // Only start polling if we're not already polling
             if (!pollingTimer) {
               console.log("[GRADING] Grading in progress, starting polling...");
               startPolling();
@@ -397,7 +397,7 @@ const DebateResultsPage = () => {
         setGradingError(error.message);
       });
     }
-  }, [transcriptionStatus, transcriptions.length, gradingStatus, startGrading, startPolling, pollingTimer]);
+  }, [transcriptionStatus, transcriptions.length, gradingStatus, startGrading, startPolling, pollingTimer, fetchGradingStatus]);
 
   // Cleanup polling on unmount or when status changes to completed/failed
   useEffect(() => {
