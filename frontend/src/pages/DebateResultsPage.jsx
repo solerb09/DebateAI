@@ -442,7 +442,14 @@ const DebateResultsPage = () => {
         <DebateHero
           title={debate.title}
           description={debate.description}
-          date={debate.createdAt}
+          date={new Date(debate.createdAt).toLocaleString('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          })}
           duration="4 minutes"
           participants={2}
           winner={participants.find(p => p.is_winner)?.username}
