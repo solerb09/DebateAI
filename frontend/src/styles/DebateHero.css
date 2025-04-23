@@ -1,0 +1,92 @@
+.debate-hero {
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 32px 40px;
+  margin: 82px auto 32px;
+  max-width: 900px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #eaeaea;
+}
+
+.debate-hero-content {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.debate-title {
+  font-size: 32px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.debate-description {
+  font-size: 16px;
+  color: #666666;
+  margin: 0;
+  line-height: 1.6;
+  max-width: 700px;
+}
+
+.debate-meta {
+  display: flex;
+  gap: 32px;
+  margin-top: 4px;
+  border-top: 1px solid #eaeaea;
+  padding-top: 20px;
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #333333;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.meta-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #666666;
+}
+
+.duration {
+  color: #666666;
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+.winner-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.winner-tag {
+  background: #000000;
+  color: #ffffff;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.winner-name {
+  font-weight: 600;
+  color: #000000;
+  font-size: 15px;
+}
+
+.position-tag {
+  color: #666666;
+  font-size: 14px;
+  font-weight: 400;
+} 

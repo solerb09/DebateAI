@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/GradingResults.css';
+import DebateHero from '../components/DebateHero';
+import ScoreCard from '../components/ScoreCard';
+import TranscriptionCard from '../components/TranscriptionCard';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -19,6 +22,7 @@ const DebateResultsPage = () => {
   const [error, setError] = useState(null);
   const [debugInfo, setDebugInfo] = useState({});
   const [gradingResults, setGradingResults] = useState(null);
+  const [transcriptionStatus, setTranscriptionStatus] = useState('idle'); // 'idle', 'processing', 'completed', 'error'
   
   // Fetch debate details and transcriptions
   useEffect(() => {
@@ -56,37 +60,53 @@ const DebateResultsPage = () => {
             console.log("[RESULTS] Transcription response status:", transcriptResponse.status);
             debugData.transcriptionResponse = responseData;
             
-            if (responseData.success && responseData.data && responseData.data.length > 0) {
-              console.log(`[RESULTS] Found ${responseData.data.length} transcriptions`);
-              
-              // Log details about each transcription
-              responseData.data.forEach((transcript, index) => {
-                console.log(`[RESULTS] Transcription ${index + 1}:`);
-                console.log(`[RESULTS] - Role: ${transcript.role}`);
-                console.log(`[RESULTS] - User ID: ${transcript.user_id}`);
-                console.log(`[RESULTS] - User Name: ${transcript.user?.username || transcript.user?.email || 'Unknown'}`);
-                console.log(`[RESULTS] - Transcript Length: ${transcript.transcript?.length || 0} chars`);
-                console.log(`[RESULTS] - Created: ${new Date(transcript.created_at).toLocaleString()}`);
-              });
-              
-              setTranscriptions(responseData.data);
-              
-              // Process transcription data for scores
-              console.log(`[RESULTS] Processing transcription data for scoring...`);
-              processTranscriptionData(responseData.data);
-              
-              // Update debug info
-              debugData.foundTranscriptions = responseData.data.length;
-              debugData.transcriptionData = responseData.data.map(t => ({
-                id: t.id,
-                role: t.role,
-                user_id: t.user_id,
-                created_at: t.created_at,
-                transcript_length: t.transcript?.length || 0
-              }));
+            if (responseData.success) {
+              if (responseData.status === 'processing') {
+                console.log('[RESULTS] Transcriptions are still being processed');
+                setTranscriptionStatus('processing');
+                setTranscriptions([]);
+                setScores({ ai: 0, human: 0 });
+                setWinner(null);
+              } else if (responseData.data && responseData.data.length > 0) {
+                console.log(`[RESULTS] Found ${responseData.data.length} transcriptions`);
+                setTranscriptionStatus('completed');
+                
+                // Log details about each transcription
+                responseData.data.forEach((transcript, index) => {
+                  console.log(`[RESULTS] Transcription ${index + 1}:`);
+                  console.log(`[RESULTS] - Role: ${transcript.role}`);
+                  console.log(`[RESULTS] - User ID: ${transcript.user_id}`);
+                  console.log(`[RESULTS] - User Name: ${transcript.user?.username || transcript.user?.email || 'Unknown'}`);
+                  console.log(`[RESULTS] - Transcript Length: ${transcript.transcript?.length || 0} chars`);
+                  console.log(`[RESULTS] - Created: ${new Date(transcript.created_at).toLocaleString()}`);
+                });
+                
+                setTranscriptions(responseData.data);
+                
+                // Process transcription data for scores
+                console.log(`[RESULTS] Processing transcription data for scoring...`);
+                processTranscriptionData(responseData.data);
+                
+                // Update debug info
+                debugData.foundTranscriptions = responseData.data.length;
+                debugData.transcriptionData = responseData.data.map(t => ({
+                  id: t.id,
+                  role: t.role,
+                  user_id: t.user_id,
+                  created_at: t.created_at,
+                  transcript_length: t.transcript?.length || 0
+                }));
+              } else {
+                console.warn("[RESULTS] No transcription data found:", responseData);
+                debugData.noTranscriptionsReason = "No data in response or empty data array";
+                setTranscriptionStatus('completed');
+                setTranscriptions([]);
+                setScores({ ai: 0, human: 0 });
+                setWinner(null);
+              }
             } else {
-              console.warn("[RESULTS] No transcription data found:", responseData);
-              debugData.noTranscriptionsReason = "No data in response or empty data array";
+              console.warn("[RESULTS] Error fetching transcriptions:", responseData);
+              debugData.transcriptionError = responseData;
               
               // Set empty transcriptions array, no mock data
               setTranscriptions([]);
@@ -255,6 +275,35 @@ const DebateResultsPage = () => {
     }
   };
   
+  // Format transcriptions for the TranscriptionCard
+  const formatTranscriptions = () => {
+    const proTranscript = transcriptions
+      .filter(t => t.role === 'pro')
+      .map(t => ({
+        title: t.user?.username || t.user?.email || 'Pro Speaker',
+        timestamp: new Date(t.created_at).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        }),
+        text: t.transcript || ''
+      }));
+
+    const conTranscript = transcriptions
+      .filter(t => t.role === 'con')
+      .map(t => ({
+        title: t.user?.username || t.user?.email || 'Con Speaker',
+        timestamp: new Date(t.created_at).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        }),
+        text: t.transcript || ''
+      }));
+
+    return { proTranscript, conTranscript };
+  };
+  
   if (loading) {
     return <div className="loading">Loading debate results...</div>;
   }
@@ -271,9 +320,22 @@ const DebateResultsPage = () => {
     );
   }
   
+  const { proTranscript, conTranscript } = formatTranscriptions();
+
   return (
     <div className="debate-results-page">
-      <h1 className="page-title">Debate Results</h1>
+      {debate && (
+        <DebateHero
+          title={debate.topic}
+          description={debate.description}
+          date={debate.scheduled_time}
+          startTime={debate.scheduled_time}
+          endTime={debate.end_time}
+          duration="1h 30m"
+          participants={2}
+          winner={winner ? getSideTitle(winner.toLowerCase() === 'ai' ? 'pro' : 'con') : null}
+        />
+      )}
       
       {winner && (
         <div className="winner-announcement">
@@ -281,136 +343,61 @@ const DebateResultsPage = () => {
         </div>
       )}
       
-      {transcriptions.length > 0 ? (
-        <div className="results-container">
-          <div className="result-card">
-            <h2>{getSideTitle('pro')}</h2>
-            {scores.ai > 0 && <div className="score">{scores.ai}</div>}
-            
-            {getKeyPoints('pro').length > 0 ? (
+      <div className="score-cards-container">
+        {transcriptions.length > 0 ? (
+          <>
+            <ScoreCard
+              position="Pro Position"
+              username={getSideTitle('pro')}
+              title="AI Ethics Researcher"
+              scores={{
+                argument_quality: scores.ai * 10,
+                communication_skills: scores.ai * 10,
+                topic_understanding: scores.ai * 10,
+                total: scores.ai * 10
+              }}
+              isWinner={winner?.toLowerCase() === 'ai'}
+            />
+            <ScoreCard
+              position="Con Position"
+              username={getSideTitle('con')}
+              title="Debate Participant"
+              scores={{
+                argument_quality: scores.human * 10,
+                communication_skills: scores.human * 10,
+                topic_understanding: scores.human * 10,
+                total: scores.human * 10
+              }}
+              isWinner={winner?.toLowerCase() === 'human'}
+            />
+          </>
+        ) : (
+          <div className="no-transcriptions-message" style={{ textAlign: 'center', margin: '2rem 0' }}>
+            {transcriptionStatus === 'processing' ? (
               <>
-                <h3>Key Points</h3>
-                <ul className="key-points">
-                  {getKeyPoints('pro').map((point, index) => (
-                    <li key={index}>{point}</li>
-                  ))}
-                </ul>
+                <h3>Transcriptions are being processed</h3>
+                <p>Please wait while we process the debate recordings. This may take a few minutes.</p>
+                <div className="loading-spinner" style={{ margin: '20px auto' }}>⌛</div>
               </>
             ) : (
-              <p>No transcript available for the Pro side.</p>
-            )}
-          </div>
-          
-          <div className="result-card">
-            <h2>{getSideTitle('con')}</h2>
-            {scores.human > 0 && <div className="score">{scores.human}</div>}
-            
-            {getKeyPoints('con').length > 0 ? (
               <>
-                <h3>Key Points</h3>
-                <ul className="key-points">
-                  {getKeyPoints('con').map((point, index) => (
-                    <li key={index}>{point}</li>
-                  ))}
-                </ul>
+                <h3>No transcriptions available for this debate</h3>
+                <p>Transcriptions will appear here once the debate is completed and recordings are processed.</p>
               </>
-            ) : (
-              <p>No transcript available for the Con side.</p>
             )}
           </div>
-        </div>
-      ) : (
-        <div className="no-transcriptions-message" style={{ textAlign: 'center', margin: '2rem 0' }}>
-          <h3>No transcriptions available for this debate</h3>
-          <p>Transcriptions will appear here once the debate is completed and recordings are processed.</p>
-        </div>
-      )}
+        )}
+      </div>
       
-      {gradingResults && (
-        <div className="grading-results">
-          <h2>AI Grading Results</h2>
-          
-          <div className="grading-summary">
-            <h3>Debate Summary</h3>
-            <p>{gradingResults.summary}</p>
-          </div>
-          
-          <div className="scores-container">
-            <div className="score-card">
-              <h3>{getSideTitle('pro')}</h3>
-              <div className="score-details">
-                <p>Argument Quality: {gradingResults.pro_scores.argument_quality}/10</p>
-                <p>Communication: {gradingResults.pro_scores.communication_skills}/10</p>
-                <p>Topic Understanding: {gradingResults.pro_scores.topic_understanding}/10</p>
-                <p className="total-score">Total: {gradingResults.pro_scores.total}/30</p>
-              </div>
-            </div>
-            
-            <div className="score-card">
-              <h3>{getSideTitle('con')}</h3>
-              <div className="score-details">
-                <p>Argument Quality: {gradingResults.con_scores.argument_quality}/10</p>
-                <p>Communication: {gradingResults.con_scores.communication_skills}/10</p>
-                <p>Topic Understanding: {gradingResults.con_scores.topic_understanding}/10</p>
-                <p className="total-score">Total: {gradingResults.con_scores.total}/30</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="feedback-section">
-            <div className="strengths">
-              <h3>Strengths</h3>
-              <div className="pro-strengths">
-                <h4>{getSideTitle('pro')}</h4>
-                <ul>
-                  {gradingResults.strengths.pro.map((strength, index) => (
-                    <li key={index}>{strength}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="con-strengths">
-                <h4>{getSideTitle('con')}</h4>
-                <ul>
-                  {gradingResults.strengths.con.map((strength, index) => (
-                    <li key={index}>{strength}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-            
-            <div className="improvements">
-              <h3>Areas for Improvement</h3>
-              <div className="pro-improvements">
-                <h4>{getSideTitle('pro')}</h4>
-                <ul>
-                  {gradingResults.improvements.pro.map((improvement, index) => (
-                    <li key={index}>{improvement}</li>
-                  ))}
-                </ul>
-              </div>
-              <div className="con-improvements">
-                <h4>{getSideTitle('con')}</h4>
-                <ul>
-                  {gradingResults.improvements.con.map((improvement, index) => (
-                    <li key={index}>{improvement}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {!gradingResults && transcriptions.length > 0 && (
-        <div className="grading-status">
-          <p>AI grading in progress...</p>
-        </div>
+      {transcriptions.length > 0 && (
+        <TranscriptionCard
+          proTranscript={proTranscript}
+          conTranscript={conTranscript}
+        />
       )}
       
       <div className="actions">
-        <Link to="/debates" className="btn">
-          Back to Debates
-        </Link>
+        <Link to="/debates" className="btn">Back to Debates</Link>
       </div>
       
       {/* Debug information section to help track transcription issues */}

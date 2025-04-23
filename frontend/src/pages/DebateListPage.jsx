@@ -123,7 +123,7 @@ const DebateListPage = () => {
             opponent: conParticipant ? (userMap.get(conParticipant.user_id) || 'Anonymous') : 'Waiting for opponent',
             participantCount: `${participants.length}/2`,
             date: room.created_at ? new Date(room.created_at).toLocaleDateString() : '2025-04-19',
-            duration: '1:00:00'
+            duration: '0:04:00'
           };
         });
 

@@ -1,0 +1,131 @@
+.transcription-card {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #eaeaea;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin: 32px auto;
+  max-width: 900px;
+  padding: 32px;
+}
+
+.transcription-header {
+  margin-bottom: 24px;
+}
+
+.transcription-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0 0 8px 0;
+}
+
+.transcription-header .subtitle {
+  font-size: 16px;
+  color: #666666;
+  margin: 0;
+}
+
+.tab-navigation {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #eaeaea;
+  padding-bottom: 1px;
+}
+
+.tab-button {
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 500;
+  color: #666666;
+  background: none;
+  border: none;
+  border-radius: 8px 8px 0 0;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-button:hover {
+  color: #000000;
+  background: #f5f5f5;
+}
+
+.tab-button.active {
+  color: #000000;
+  font-weight: 600;
+  background: #ffffff;
+  border: 1px solid #eaeaea;
+  border-bottom: 2px solid #ffffff;
+  margin-bottom: -1px;
+}
+
+.transcript-content {
+  padding: 16px 0;
+}
+
+.transcript-entry {
+  margin-bottom: 32px;
+}
+
+.transcript-entry:last-child {
+  margin-bottom: 0;
+}
+
+.entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.entry-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #000000;
+  margin: 0;
+}
+
+.timestamp {
+  font-size: 14px;
+  color: #666666;
+}
+
+.transcript-entry p {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333333;
+  margin: 0;
+}
+
+.key-points {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.key-points-section h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: #000000;
+  margin: 0 0 16px 0;
+}
+
+.key-points-section ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.key-points-section li {
+  font-size: 16px;
+  line-height: 1.6;
+  color: #333333;
+  padding: 12px 16px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.key-points-section li:last-child {
+  margin-bottom: 0;
+} 

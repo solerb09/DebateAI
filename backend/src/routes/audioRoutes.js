@@ -329,7 +329,7 @@ router.get('/transcriptions/:debateId', async (req, res) => {
       if (userIds.length > 0) {
         const { data: userData, error: userError } = await supabase
           .from('users')
-          .select('id, email, full_name')
+          .select('id, email, username')
           .in('id', userIds);
           
         if (!userError && userData) {

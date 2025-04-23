@@ -274,12 +274,12 @@ const handleTurnExpiration = async (debateId, debateRooms, io, supabase) => {
       debateRoom.turnTimer = null;
     }
 
-    // Set new turn timer with 2 minutes
-    console.log(`[TIMER EXPIRED] Setting new turn timer for 2 minutes`);
+    // Set new turn timer with 10 seconds
+    console.log(`[TIMER EXPIRED] Setting new turn timer for 10 seconds`);
     debateRoom.turnTimer = setTimeout(() => {
       // Pass necessary arguments to the handler
       handleTurnExpiration(debateId, debateRooms, io, supabase);
-    }, 120000); // 2 minutes turn timer
+    }, 10000); // 10 seconds turn timer
   } catch (error) {
     console.error(`[TIMER EXPIRED] Error handling turn expiration:`, error);
   } finally {
@@ -323,11 +323,11 @@ const startDebateAfterCountdown = (debateId, allParticipants, debateRooms, io, s
   console.log(`[DEBATE START] First turn is 'pro' (affirmative)`);
   console.log(`[DEBATE START] Debate structure: ${JSON.stringify(debateRoom.debateStructure)}`);
 
-  // Initialize turn timer with 2 minutes
+  // Initialize turn timer with 10 seconds
   debateRoom.turnTimer = setTimeout(() => {
     // Pass necessary arguments to the handler
     handleTurnExpiration(debateId, debateRooms, io, supabase);
-  }, 120000); // 2 minutes turn timer
+  }, 10000); // 10 seconds turn timer
 
   // Notify clients that debate has started
   io.to(debateId).emit('debate_start', {
@@ -336,7 +336,7 @@ const startDebateAfterCountdown = (debateId, allParticipants, debateRooms, io, s
   });
 
   console.log(`[DEBATE START] Debate ${debateId} started with roles:`, debateRoom.roles);
-  console.log(`[DEBATE START] Turn timer set for 2 minutes`);
+  console.log(`[DEBATE START] Turn timer set for 10 seconds`);
 };
 
 
