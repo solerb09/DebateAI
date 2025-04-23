@@ -92,7 +92,7 @@ class AIGradingService {
      */
     async _gradeWithAI(topic, description, proTranscript, conTranscript) {
         try {
-            const prompt = `You are an expert debate judge. Please evaluate the following debate and provide a detailed analysis and scoring.
+            const prompt = `You are an expert debate judge. Please evaluate the following debate and provide a detailed analysis and scoring. Understand that when you are evaluating, it needs to be as objective and repeatable as possible to ensure fairness. Repeatability of the same transcripts with exact or very similar scores is a top priority.
 
 Debate Topic: ${topic}
 Topic Description: ${description}
@@ -103,10 +103,11 @@ ${proTranscript}
 Con Side Transcript:
 ${conTranscript}
 
-Please evaluate the debate based on the following criteria and provide a score from 1-10 for each category:
+
+Please evaluate the debate based on the following criteria and provide a score from 1-10 for each category. If a participant makes a factual claim, assess whether it is true, misleading, or false using publicly available and reliable knowledge. This outcome should affect scoring.
 
 1. Argument Quality (10 points):
-   - Strength of evidence
+   - Strength of evidence and correctness of claim
    - Logical consistency
    - Relevance to topic
    - Depth of analysis
@@ -127,7 +128,6 @@ Please provide:
 2. Individual scores for each category for both sides
 3. A brief explanation for each score
 4. An overall winner
-5. Key strengths and areas for improvement for each side
 
 Format your response as a JSON object with the following structure:
 {
@@ -157,14 +157,6 @@ Format your response as a JSON object with the following structure:
         }
     },
     "winner": "pro" | "con",
-    "strengths": {
-        "pro": ["string"],
-        "con": ["string"]
-    },
-    "improvements": {
-        "pro": ["string"],
-        "con": ["string"]
-    }
 }`;
 
             const completion = await this.openai.chat.completions.create({

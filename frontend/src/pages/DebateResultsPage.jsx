@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import '../styles/GradingResults.css';
 import DebateHero from '../components/DebateHero';
 import ScoreCard from '../components/ScoreCard';
 import TranscriptionCard from '../components/TranscriptionCard';
@@ -20,6 +21,7 @@ const DebateResultsPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [debugInfo, setDebugInfo] = useState({});
+  const [gradingResults, setGradingResults] = useState(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState('idle'); // 'idle', 'processing', 'completed', 'error'
   
   // Fetch debate details and transcriptions
@@ -37,8 +39,9 @@ const DebateResultsPage = () => {
         const debateResponse = await fetch(`${API_URL}/api/debates/${debateId}`);
         
         if (!debateResponse.ok) {
-          console.error(`[RESULTS] Error ${debateResponse.status} fetching debate details`);
-          throw new Error(`Server responded with ${debateResponse.status}`);
+          const errorText = await debateResponse.text();
+          console.error(`[RESULTS] Error ${debateResponse.status} fetching debate details:`, errorText);
+          throw new Error(`Server responded with ${debateResponse.status}: ${errorText}`);
         }
         
         const debateData = await debateResponse.json();
@@ -132,6 +135,11 @@ const DebateResultsPage = () => {
         setDebugInfo(debugData);
         setLoading(false);
         console.log(`[RESULTS] ========= RESULTS LOADING COMPLETE =========`);
+        
+        // After fetching debate data, fetch grading results
+        await fetchGradingResults()
+        console.log(`[RESULTS] ========= GRADING RESULTS FETCHED =========`);
+        
       } catch (error) {
         console.error('[RESULTS] Error fetching debate data:', error);
         setError('Failed to load debate information');
@@ -244,6 +252,27 @@ const DebateResultsPage = () => {
     
     // Default titles if no transcriptions
     return role === 'pro' ? 'Pro Speaker' : 'Con Speaker';
+  };
+  
+  const fetchGradingResults = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/grading/${debateId}/results`);
+      if (!response.ok) {
+        // If results aren't ready, trigger grading
+        await fetch(`${API_URL}/api/grading/${debateId}`, {
+          method: 'POST'
+        });
+        // Wait a bit and try again
+        setTimeout(fetchGradingResults, 3000);
+        return;
+      }
+      const data = await response.json();
+      if (data.success) {
+        setGradingResults(data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching grading results:', error);
+    }
   };
   
   // Format transcriptions for the TranscriptionCard
