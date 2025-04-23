@@ -42,6 +42,7 @@ const DebateRoomPage = () => {
   const [speakingTurn, setSpeakingTurn] = useState(null); // 'pro' or 'con'
   const [countdown, setCountdown] = useState(5);
   const [turnTimer, setTurnTimer] = useState(10); // 10 seconds per turn
+  const [canViewResults, setCanViewResults] = useState(false);
   
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
@@ -615,6 +616,18 @@ const DebateRoomPage = () => {
     };
   }, [isRecording, recordingStatus]);
   
+  // Handle delay for viewing results
+  useEffect(() => {
+    if (recordingStatus === 'uploaded') {
+      setCanViewResults(false);
+      const timer = setTimeout(() => {
+        setCanViewResults(true);
+      }, 3000); // 3 second delay
+
+      return () => clearTimeout(timer);
+    }
+  }, [recordingStatus]);
+  
   // Add CSS styles for the recording indicator
   const styles = {
     recordingStatusIndicator: {
@@ -693,15 +706,17 @@ const DebateRoomPage = () => {
                   style={{
                     marginLeft: '15px',
                     padding: '5px 15px',
-                    backgroundColor: '#4CAF50',
+                    backgroundColor: canViewResults ? '#4CAF50' : '#FFA500',
                     color: 'white',
                     border: 'none',
                     borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold'
+                    cursor: canViewResults ? 'pointer' : 'not-allowed',
+                    fontWeight: 'bold',
+                    opacity: canViewResults ? 1 : 0.7
                   }}
+                  disabled={!canViewResults}
                 >
-                  View Results
+                  {canViewResults ? 'View Results' : 'Processing...'}
                 </button>
               </>
             )}
@@ -858,15 +873,17 @@ const DebateRoomPage = () => {
                 style={{
                   marginLeft: '10px',
                   padding: '5px 15px',
-                  backgroundColor: '#4CAF50',
+                  backgroundColor: canViewResults ? '#4CAF50' : '#FFA500',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold'
+                  cursor: canViewResults ? 'pointer' : 'not-allowed',
+                  fontWeight: 'bold',
+                  opacity: canViewResults ? 1 : 0.7
                 }}
+                disabled={!canViewResults}
               >
-                View Results
+                {canViewResults ? 'View Results' : 'Processing...'}
               </button>
             </>
           )}
