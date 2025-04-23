@@ -159,8 +159,12 @@ function ProfilePage() {
           
           // Calculate total score from score_breakdown if available
           const totalScore = participation.score_breakdown ? 
-            Object.values(JSON.parse(participation.score_breakdown)).reduce((sum, val) => sum + val, 0) : 
-            null;
+            (typeof participation.score_breakdown === 'string' 
+              ? Object.values(JSON.parse(participation.score_breakdown)).reduce((sum, val) => sum + val, 0)
+              : (participation.score_breakdown.scores 
+                ? Object.values(participation.score_breakdown.scores).reduce((sum, val) => sum + val, 0)
+                : 0)
+            ) : null;
           
           return {
             id: room.id,
@@ -252,7 +256,11 @@ function ProfilePage() {
           participations.forEach(participation => {
             if (participation.score_breakdown) {
               try {
-                const scores = JSON.parse(participation.score_breakdown);
+                // Check if score_breakdown is already an object or is a JSON string
+                const scores = typeof participation.score_breakdown === 'string'
+                  ? JSON.parse(participation.score_breakdown)
+                  : (participation.score_breakdown.scores || participation.score_breakdown);
+                
                 for (const [key, value] of Object.entries(scores)) {
                   if (scoreCategories.hasOwnProperty(key)) {
                     scoreCategories[key] += value;
@@ -260,7 +268,7 @@ function ProfilePage() {
                 }
                 debatesWithScores++;
               } catch (err) {
-                console.error('Error parsing score breakdown:', err);
+                console.error('Error parsing score breakdown:', err, participation.score_breakdown);
               }
             }
           });
