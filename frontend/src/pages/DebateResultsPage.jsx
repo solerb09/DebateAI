@@ -440,12 +440,10 @@ const DebateResultsPage = () => {
     <div className="debate-results-page">
       {debate && (
         <DebateHero
-          title={debate.topic}
+          title={debate.title}
           description={debate.description}
-          date={debate.scheduled_time}
-          startTime={debate.scheduled_time}
-          endTime={debate.end_time}
-          duration="1h 30m"
+          date={debate.createdAt}
+          duration="4 minutes"
           participants={2}
           winner={participants.find(p => p.is_winner)?.username}
         />

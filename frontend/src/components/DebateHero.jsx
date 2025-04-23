@@ -5,8 +5,6 @@ const DebateHero = ({
   title, 
   description, 
   date, 
-  startTime, 
-  endTime, 
   duration, 
   participants,
   winner 
@@ -35,7 +33,6 @@ const DebateHero = ({
                 <path d="M8 4V8L10 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
               </svg>
             </span>
-            <span>{`${startTime} - ${endTime}`}</span>
             <span className="duration">{duration}</span>
           </div>
           
