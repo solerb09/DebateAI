@@ -12,8 +12,7 @@ function LeaderboardPage() {
   const [debaters, setDebaters] = useState([]);
   const [topPerformers, setTopPerformers] = useState({
     mostWins: null,
-    highestWinRate: null,
-    mostImproved: null
+    highestWinRate: null
   });
   const [categories, setCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -42,17 +41,26 @@ function LeaderboardPage() {
             bio,
             wins,
             losses
-          `)
-          .order('wins', { ascending: false });
+          `);
 
         if (userError) throw userError;
 
         // Get top debaters with additional data
         const topUsers = await processUserData(userData || []);
-        setDebaters(topUsers);
+        
+        // Sort by win rate instead of wins
+        const sortedUsers = topUsers.sort((a, b) => (b.winRate || 0) - (a.winRate || 0));
+        
+        // Reassign ranks based on new sorting
+        sortedUsers.forEach((user, index) => {
+          user.rank = index + 1;
+        });
+        
+        setDebaters(sortedUsers);
 
         // Calculate top performers
-        const performers = calculateTopPerformers(topUsers);
+        const performers = calculateTopPerformers(sortedUsers);
+        console.log("Top performers:", performers); // Debug log
         setTopPerformers(performers);
 
       } catch (err) {
@@ -114,22 +122,39 @@ function LeaderboardPage() {
         });
       }
 
-      // Fetch average score
+      // Fetch average score - updated to get scores out of 30
       const { data: scores, error: scoresError } = await supabase
         .from('debate_participants')
-        .select('final_score')
+        .select(`
+          id,
+          score_breakdown
+        `)
         .eq('user_id', user.id)
-        .not('final_score', 'is', null);
+        .not('score_breakdown', 'is', null);
 
       let avgScore = 0;
       if (!scoresError && scores && scores.length > 0) {
-        const sum = scores.reduce((acc, curr) => acc + (curr.final_score || 0), 0);
-        avgScore = (sum / scores.length).toFixed(1);
+        // Filter valid scores (those with score_breakdown that has scores.total)
+        const validScores = scores.filter(item => 
+          item.score_breakdown && 
+          item.score_breakdown.scores && 
+          typeof item.score_breakdown.scores.total === 'number'
+        );
+        
+        if (validScores.length > 0) {
+          // Calculate average of total scores
+          const sum = validScores.reduce((acc, curr) => {
+            return acc + curr.score_breakdown.scores.total;
+          }, 0);
+          
+          avgScore = (sum / validScores.length).toFixed(1);
+          console.log(`User ${user.username} has average score: ${avgScore}/30 from ${validScores.length} debates`);
+        }
       }
 
       return {
         ...user,
-        rank: index + 1,
+        rank: index + 1, // This will be reassigned after sorting
         totalDebates,
         winRate,
         topCategory,
@@ -144,22 +169,22 @@ function LeaderboardPage() {
   const calculateTopPerformers = (users) => {
     // Sort by different metrics
     const sortedByWins = [...users].sort((a, b) => (b.wins || 0) - (a.wins || 0));
-    const sortedByWinRate = [...users]
-      .filter(user => (user.totalDebates || 0) >= 5) // Minimum 5 debates
-      .sort((a, b) => (b.winRate || 0) - (a.winRate || 0));
+    
+    // Filter users that have at least 5 debates first
+    const eligibleForWinRate = users.filter(user => (user.totalDebates || 0) >= 5);
+    console.log("Eligible users for win rate:", eligibleForWinRate.length); // Debug log
+    
+    // Then sort by win rate
+    const sortedByWinRate = [...eligibleForWinRate].sort((a, b) => (b.winRate || 0) - (a.winRate || 0));
+    console.log("Sorted by win rate:", sortedByWinRate.map(u => u.username)); // Debug log
 
-    // For most improved, we would need historical data
-    // This is a placeholder implementation
-    const mostImproved = {
-      username: 'Jennifer Lee',
-      improvement: '+35%',
-      timeframe: 'this month'
-    };
+    // Make sure we have valid data for both categories
+    const mostWins = sortedByWins.length > 0 ? sortedByWins[0] : null;
+    const highestWinRate = sortedByWinRate.length > 0 ? sortedByWinRate[0] : null;
 
     return {
-      mostWins: sortedByWins[0] || null,
-      highestWinRate: sortedByWinRate[0] || null,
-      mostImproved: mostImproved
+      mostWins,
+      highestWinRate
     };
   };
 
@@ -191,6 +216,9 @@ function LeaderboardPage() {
     );
   }
 
+  // Add debug logs
+  console.log("Current top performers:", topPerformers);
+
   return (
     <div className="leaderboard-page">
       <div className="leaderboard-header">
@@ -202,7 +230,7 @@ function LeaderboardPage() {
         <div className="leaderboard-main">
           <div className="leaderboard-top-section">
             <h2>Top Debaters</h2>
-            <p className="rankings-subtitle">All-time rankings</p>
+            <p className="rankings-subtitle">Ranked by win rate</p>
 
             <div className="leaderboard-filters">
               <div className="filter-dropdown">
@@ -269,16 +297,6 @@ function LeaderboardPage() {
                   user={topPerformers.highestWinRate}
                   subtitle={`${topPerformers.highestWinRate.winRate || 0}% win rate`}
                   detail="minimum 5 debates"
-                />
-              )}
-
-              {topPerformers.mostImproved && (
-                <PerformerCard
-                  type="improved"
-                  title="Most Improved"
-                  user={{ username: topPerformers.mostImproved.username }}
-                  subtitle={`${topPerformers.mostImproved.improvement} improvement`}
-                  detail={topPerformers.mostImproved.timeframe}
                 />
               )}
             </div>

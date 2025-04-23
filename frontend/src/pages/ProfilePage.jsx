@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import '../styles/ProfilePage.css';
@@ -13,6 +13,7 @@ import Button from '../components/Button';
 function ProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
   const navigate = useNavigate();
+  const { userId } = useParams(); // Get userId from URL params
   const [loading, setLoading] = useState(true);
   const [debatesLoading, setDebatesLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -23,6 +24,8 @@ function ProfilePage() {
   const [error, setError] = useState(null);
   const [debatesError, setDebatesError] = useState(null);
   const [success, setSuccess] = useState(null);
+  const [viewedUser, setViewedUser] = useState(null);
+  const [isOwnProfile, setIsOwnProfile] = useState(true);
 
   // Profile data state
   const [profileData, setProfileData] = useState({
@@ -52,10 +55,51 @@ function ProfilePage() {
   // Debate history state
   const [debates, setDebates] = useState([]);
 
-  // Fetch user debates from Supabase
+  // Determine if viewing own profile or another user's profile
+  useEffect(() => {
+    if (userId) {
+      // Viewing another user's profile
+      setIsOwnProfile(userId === user?.id);
+      fetchUserProfile(userId);
+    } else if (user) {
+      // Viewing own profile
+      setIsOwnProfile(true);
+      setViewedUser(user);
+    }
+  }, [userId, user]);
+
+  // Fetch the profile of the user being viewed
+  const fetchUserProfile = async (id) => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) throw error;
+      
+      if (data) {
+        setViewedUser(data);
+      } else {
+        // User not found
+        setError('User not found');
+        navigate('/404');
+      }
+    } catch (err) {
+      console.error('Error fetching user profile:', err);
+      setError('Failed to load user profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch user debates from Supabase - modified to use viewedUser instead of current user
   useEffect(() => {
     const fetchUserDebates = async () => {
-      if (!user) return;
+      const targetUserId = userId || user?.id;
+      if (!targetUserId) return;
       
       try {
         setDebatesLoading(true);
@@ -86,7 +130,7 @@ function ProfilePage() {
               )
             )
           `)
-          .eq('user_id', user.id)
+          .eq('user_id', targetUserId)
           .order('joined_at', { ascending: false });
 
         if (participationsError) {
@@ -108,7 +152,7 @@ function ProfilePage() {
             is_winner
           `)
           .in('room_id', roomIds)
-          .not('user_id', 'eq', user.id); // Exclude current user
+          .not('user_id', 'eq', targetUserId); // Exclude current user
 
         if (participantsError) {
           throw new Error(participantsError.message);
@@ -160,10 +204,44 @@ function ProfilePage() {
           // Calculate total score from score_breakdown if available
           const totalScore = participation.score_breakdown ? 
             (typeof participation.score_breakdown === 'string' 
-              ? Object.values(JSON.parse(participation.score_breakdown)).reduce((sum, val) => sum + val, 0)
-              : (participation.score_breakdown.scores 
-                ? Object.values(participation.score_breakdown.scores).reduce((sum, val) => sum + val, 0)
-                : 0)
+              ? (() => {
+                  const parsed = JSON.parse(participation.score_breakdown);
+                  // Check for new scoring format directly from query
+                  if (parsed.argument_quality !== undefined) {
+                    return parsed.total || 
+                           (parsed.argument_quality + parsed.topic_understanding + parsed.communication_skills);
+                  }
+                  // Check for new scoring format with scores property
+                  else if (parsed.scores) {
+                    return Object.values(parsed.scores).reduce((sum, val) => sum + val, 0);
+                  }
+                  // Legacy format (direct properties)
+                  else {
+                    return Object.values(parsed).reduce((sum, val) => sum + val, 0);
+                  }
+                })()
+              : (participation.score_breakdown.argument_quality !== undefined
+                ? participation.score_breakdown.total || 
+                  (participation.score_breakdown.argument_quality + 
+                   participation.score_breakdown.topic_understanding + 
+                   participation.score_breakdown.communication_skills)
+                : (participation.score_breakdown.scores 
+                  ? (() => {
+                      // Handle the case where scores has a total property
+                      if (participation.score_breakdown.scores.total !== undefined) {
+                        console.log('Using scores.total format (object):', participation.score_breakdown.scores.total);
+                        return participation.score_breakdown.scores.total;
+                      }
+                      // Otherwise sum the individual scores
+                      const nestedScore = Object.values(participation.score_breakdown.scores).reduce((sum, val) => sum + val, 0);
+                      console.log('Using nested scores format (object):', { 
+                        scores: participation.score_breakdown.scores, 
+                        calculatedTotal: nestedScore 
+                      });
+                      return nestedScore;
+                    })()
+                  : 0)
+                )
             ) : null;
           
           return {
@@ -177,7 +255,7 @@ function ProfilePage() {
             }),
             result: result,
             type: participation.side === 'pro' ? 'Pro' : 'Con',
-            score: totalScore ? `${totalScore}/10` : 'N/A',
+            score: totalScore ? `${totalScore}/30` : 'N/A',
             opponent: opponentName,
             duration: calculateDuration(room.created_at, room.ended_at),
             category: topic?.categories?.name || 'Uncategorized'
@@ -257,9 +335,34 @@ function ProfilePage() {
             if (participation.score_breakdown) {
               try {
                 // Check if score_breakdown is already an object or is a JSON string
-                const scores = typeof participation.score_breakdown === 'string'
-                  ? JSON.parse(participation.score_breakdown)
-                  : (participation.score_breakdown.scores || participation.score_breakdown);
+                const parseScoreBreakdown = (breakdown) => {
+                  if (typeof breakdown === 'string') {
+                    breakdown = JSON.parse(breakdown);
+                  }
+                  
+                  // Direct format as in query
+                  if (breakdown.argument_quality !== undefined) {
+                    return {
+                      'Argument Quality': breakdown.argument_quality || 0,
+                      'Communication Skills': breakdown.communication_skills || 0,
+                      'Topic Understanding': breakdown.topic_understanding || 0
+                    };
+                  }
+                  // New format with scores property
+                  else if (breakdown.scores) {
+                    return {
+                      'Argument Quality': breakdown.scores.argument_quality || 0,
+                      'Communication Skills': breakdown.scores.communication_skills || 0,
+                      'Topic Understanding': breakdown.scores.topic_understanding || 0
+                    };
+                  }
+                  // Legacy format
+                  else {
+                    return breakdown;
+                  }
+                };
+                
+                const scores = parseScoreBreakdown(participation.score_breakdown);
                 
                 for (const [key, value] of Object.entries(scores)) {
                   if (scoreCategories.hasOwnProperty(key)) {
@@ -291,8 +394,10 @@ function ProfilePage() {
       }
     };
     
-    fetchUserDebates();
-  }, [user]);
+    if (viewedUser || user) {
+      fetchUserDebates();
+    }
+  }, [viewedUser, user, userId]);
 
   // Helper function to calculate debate duration
   const calculateDuration = (startTime, endTime) => {
@@ -313,8 +418,8 @@ function ProfilePage() {
 
   // Populate form and profile data with user data
   useEffect(() => {
-    if (user) {
-      // Format profile data for display
+    if (isOwnProfile && user) {
+      // Format profile data for display for own profile
       const formattedData = {
         username: profile?.username || user?.user_metadata?.username || user.email,
         bio: profile?.bio || 'No bio available.',
@@ -340,10 +445,32 @@ function ProfilePage() {
       });
       
       setLoading(false);
-    } else {
+    } else if (viewedUser) {
+      // Format profile data for display for other user's profile
+      const formattedData = {
+        username: viewedUser.username || 'Unknown User',
+        bio: viewedUser.bio || 'No bio available.',
+        memberSince: viewedUser.created_at 
+          ? new Date(viewedUser.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+          : 'Unknown',
+        totalDebates: profileData.totalDebates,
+        winRate: profileData.winRate,
+        winLossRatio: profileData.winLossRatio,
+        wins: viewedUser.wins || 0,
+        losses: viewedUser.losses || 0,
+        tags: viewedUser.tags || []
+      };
+      
+      setProfileData(prev => ({
+        ...prev,
+        ...formattedData
+      }));
+      
+      setLoading(false);
+    } else if (!user && !userId) {
       navigate('/login');
     }
-  }, [user, profile, navigate, profileData.totalDebates, profileData.winRate, profileData.winLossRatio, profileData.wins, profileData.losses]);
+  }, [user, profile, viewedUser, navigate, isOwnProfile, profileData.totalDebates, profileData.winRate, profileData.winLossRatio]);
 
   const handleEditProfile = () => {
     setEditing(true);
@@ -397,7 +524,7 @@ function ProfilePage() {
     }
   };
 
-  if (loading && !profile) {
+  if (loading && !profile && !viewedUser) {
     return <div className="profile-container">Loading profile...</div>;
   }
 
@@ -408,7 +535,7 @@ function ProfilePage() {
         <div className="profile-left-column">
           <UserProfile 
             userData={profileData} 
-            onEditProfile={handleEditProfile} 
+            onEditProfile={isOwnProfile ? handleEditProfile : null} 
           />
           
           <PerformanceStats stats={performanceStats} />
@@ -425,7 +552,7 @@ function ProfilePage() {
         </div>
       </div>
       
-      {editing && (
+      {editing && isOwnProfile && (
         <div className="edit-profile-modal">
           <div className="edit-profile-content">
             <h2>Edit Profile</h2>

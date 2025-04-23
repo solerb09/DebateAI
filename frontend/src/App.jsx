@@ -74,6 +74,8 @@ function App() {
                 </ProtectedRoute>
               } />
               
+              <Route path="/profile/:userId" element={<ProfilePage />} />
+              
               <Route path="/leaderboard" element={
                 <ProtectedRoute>
                   <LeaderboardPage />

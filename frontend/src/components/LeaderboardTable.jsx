@@ -1,13 +1,21 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import '../styles/LeaderboardTable.css';
 
 function LeaderboardTable({ debaters }) {
+  const navigate = useNavigate();
+
   // Get trophy color based on rank
   const getTrophyColor = (rank) => {
     if (rank === 1) return 'gold';
     if (rank === 2) return 'silver';
     if (rank === 3) return 'bronze';
     return '';
+  };
+
+  // Navigate to user profile when their name is clicked
+  const handleUserClick = (userId) => {
+    navigate(`/profile/${userId}`);
   };
 
   return (
@@ -39,7 +47,12 @@ function LeaderboardTable({ debaters }) {
               <td className="debater-column">
                 <div className="debater-info">
                   <div className="debater-details">
-                    <div className="debater-name">{debater.username}</div>
+                    <div 
+                      className="debater-name clickable" 
+                      onClick={() => handleUserClick(debater.id)}
+                    >
+                      {debater.username}
+                    </div>
                     <div className="debater-title">{debater.bio?.split('\n')[0] || 'Debate Enthusiast'}</div>
                   </div>
                 </div>
@@ -60,7 +73,7 @@ function LeaderboardTable({ debaters }) {
               <td className="category-column">
                 <span className="category-badge">{debater.topCategory}</span>
               </td>
-              <td className="score-column">{debater.averageScore || 0}/10</td>
+              <td className="score-column">{debater.averageScore || 0}/30</td>
             </tr>
           ))}
           

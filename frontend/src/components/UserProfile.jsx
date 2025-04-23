@@ -48,7 +48,7 @@ function UserProfile({ userData, onEditProfile }) {
               <div 
                 className="ratio-fill" 
                 style={{ 
-                  width: `${(userData.wins / (userData.wins + userData.losses)) * 100}%`
+                  width: `${(userData.wins / (userData.wins + userData.losses || 1)) * 100}%`
                 }}
               ></div>
             </div>
@@ -56,9 +56,11 @@ function UserProfile({ userData, onEditProfile }) {
         </div>
       </div>
 
-      <Button onClick={onEditProfile}>
-        Edit Profile
-      </Button>
+      {onEditProfile && (
+        <Button onClick={onEditProfile}>
+          Edit Profile
+        </Button>
+      )}
     </div>
   );
 }
