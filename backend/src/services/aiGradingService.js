@@ -164,6 +164,70 @@ class AIGradingService {
 
             console.log('[GRADING] Successfully updated participants, updating debate room status...');
 
+            // Update user win/loss counts
+            console.log('[GRADING] Updating user win/loss counts...');
+            
+            try {
+                // Find the winner and loser participants
+                const winner = updates.find(p => p.is_winner === true);
+                const loser = updates.find(p => p.is_winner === false);
+                
+                if (winner && winner.user_id && loser && loser.user_id) {
+                    // Get current stats for winner
+                    const { data: winnerData, error: winnerFetchError } = await this.supabase
+                        .from('users')
+                        .select('wins')
+                        .eq('id', winner.user_id)
+                        .single();
+                    
+                    if (winnerFetchError) {
+                        console.error('[GRADING] Failed to fetch winner stats:', winnerFetchError);
+                    } else {
+                        // Increment wins for winner
+                        const currentWins = winnerData.wins || 0;
+                        const { error: winnerUpdateError } = await this.supabase
+                            .from('users')
+                            .update({ wins: currentWins + 1 })
+                            .eq('id', winner.user_id);
+                        
+                        if (winnerUpdateError) {
+                            console.error('[GRADING] Failed to update winner stats:', winnerUpdateError);
+                        } else {
+                            console.log(`[GRADING] Successfully incremented wins for user ${winner.user_id} to ${currentWins + 1}`);
+                        }
+                    }
+                    
+                    // Get current stats for loser
+                    const { data: loserData, error: loserFetchError } = await this.supabase
+                        .from('users')
+                        .select('losses')
+                        .eq('id', loser.user_id)
+                        .single();
+                    
+                    if (loserFetchError) {
+                        console.error('[GRADING] Failed to fetch loser stats:', loserFetchError);
+                    } else {
+                        // Increment losses for loser
+                        const currentLosses = loserData.losses || 0;
+                        const { error: loserUpdateError } = await this.supabase
+                            .from('users')
+                            .update({ losses: currentLosses + 1 })
+                            .eq('id', loser.user_id);
+                        
+                        if (loserUpdateError) {
+                            console.error('[GRADING] Failed to update loser stats:', loserUpdateError);
+                        } else {
+                            console.log(`[GRADING] Successfully incremented losses for user ${loser.user_id} to ${currentLosses + 1}`);
+                        }
+                    }
+                } else {
+                    console.warn('[GRADING] Could not determine winner and loser for updating stats');
+                }
+            } catch (statsError) {
+                console.error('[GRADING] Error updating user win/loss stats:', statsError);
+                // Don't fail the whole process if stats update fails
+            }
+
             // Update debate room status to completed (no metadata needed)
             const { error: finalStatusError } = await this.supabase
                 .from('debate_rooms')
