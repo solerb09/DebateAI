@@ -1,0 +1,105 @@
+/* PerformerCard.css */
+
+.performer-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px;
+  border-radius: 8px;
+  background-color: #f8f9fa;
+  transition: transform 0.2s, box-shadow 0.2s;
+  cursor: pointer;
+}
+
+.performer-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+/* Card variants */
+.performer-card.wins {
+  background-color: rgba(255, 215, 0, 0.08);
+}
+
+.performer-card.winRate {
+  background-color: rgba(76, 118, 226, 0.08);
+}
+
+.performer-card.improved {
+  background-color: rgba(46, 204, 113, 0.08);
+}
+
+/* Icon styles */
+.performer-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 18px;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.wins .performer-icon {
+  background-color: rgba(255, 215, 0, 0.2);
+}
+
+.winRate .performer-icon {
+  background-color: rgba(76, 118, 226, 0.2);
+}
+
+.improved .performer-icon {
+  background-color: rgba(46, 204, 113, 0.2);
+}
+
+/* Content styles */
+.performer-content {
+  flex: 1;
+}
+
+.performer-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #666;
+  margin: 0 0 4px 0;
+}
+
+.performer-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #333;
+  margin: 0 0 8px 0;
+}
+
+.performer-stats {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 14px;
+}
+
+.performer-main-stat {
+  font-weight: 600;
+  color: #333;
+}
+
+.performer-detail {
+  color: #666;
+  font-size: 12px;
+  text-align: right;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .performer-card {
+    padding: 12px;
+  }
+  
+  .performer-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+  }
+} 
