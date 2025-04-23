@@ -450,7 +450,7 @@ const DebateResultsPage = () => {
             minute: '2-digit',
             hour12: true
           })}
-          duration="4 minutes"
+          duration="4 Minutes"
           participants={2}
           winner={participants.find(p => p.is_winner)?.username}
         />
