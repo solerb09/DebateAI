@@ -68,7 +68,8 @@ function ProfilePage() {
             id,
             room_id,
             side,
-            final_score,
+            score_breakdown,
+            is_winner,
             joined_at,
             debate_rooms(
               id,
@@ -103,7 +104,8 @@ function ProfilePage() {
             user_id,
             room_id,
             side,
-            final_score
+            score_breakdown,
+            is_winner
           `)
           .in('room_id', roomIds)
           .not('user_id', 'eq', user.id); // Exclude current user
@@ -148,12 +150,17 @@ function ProfilePage() {
           let result = 'In Progress';
           
           if (isCompleted) {
-            if (opponent && participation.final_score && opponent.final_score) {
-              result = participation.final_score > opponent.final_score ? 'Won' : 'Lost';
+            if (participation.is_winner !== null) {
+              result = participation.is_winner ? 'Won' : 'Lost';
             } else {
               result = 'Completed';
             }
           }
+          
+          // Calculate total score from score_breakdown if available
+          const totalScore = participation.score_breakdown ? 
+            Object.values(JSON.parse(participation.score_breakdown)).reduce((sum, val) => sum + val, 0) : 
+            null;
           
           return {
             id: room.id,
@@ -166,7 +173,7 @@ function ProfilePage() {
             }),
             result: result,
             type: participation.side === 'pro' ? 'Pro' : 'Con',
-            score: participation.final_score ? `${participation.final_score}/10` : 'N/A',
+            score: totalScore ? `${totalScore}/10` : 'N/A',
             opponent: opponentName,
             duration: calculateDuration(room.created_at, room.ended_at),
             category: topic?.categories?.name || 'Uncategorized'
@@ -232,6 +239,42 @@ function ProfilePage() {
         setTopCategories(processedCategories);
         setDebates(processedDebates);
         
+        // Calculate performance stats from score_breakdown
+        if (processedDebates.length > 0) {
+          const scoreCategories = {
+            'Argument Quality': 0,
+            'Communication Skills': 0,
+            'Topic Understanding': 0
+          };
+          
+          let debatesWithScores = 0;
+          
+          participations.forEach(participation => {
+            if (participation.score_breakdown) {
+              try {
+                const scores = JSON.parse(participation.score_breakdown);
+                for (const [key, value] of Object.entries(scores)) {
+                  if (scoreCategories.hasOwnProperty(key)) {
+                    scoreCategories[key] += value;
+                  }
+                }
+                debatesWithScores++;
+              } catch (err) {
+                console.error('Error parsing score breakdown:', err);
+              }
+            }
+          });
+          
+          // Calculate average scores
+          if (debatesWithScores > 0) {
+            const updatedStats = Object.entries(scoreCategories).map(([name, score]) => ({
+              name,
+              score: Math.round((score / debatesWithScores) * 10) / 10
+            }));
+            
+            setPerformanceStats(updatedStats);
+          }
+        }
       } catch (err) {
         console.error('Error fetching user debates:', err);
         setDebatesError('Failed to load debate history');
