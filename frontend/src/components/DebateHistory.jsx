@@ -85,7 +85,7 @@ function DebateHistory({ debates = [], loading = false, error = null }) {
               <div className="performance-container">
                 {debate.score && (
                   <div className="debate-score">
-                    Performance Score: <span className="score-value">{debate.score}</span>
+                    Performance Score: {debate.score}
                   </div>
                 )}
               </div>
