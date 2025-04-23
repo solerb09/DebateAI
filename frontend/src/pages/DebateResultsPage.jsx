@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import DebateHero from '../components/DebateHero';
 import ScoreCard from '../components/ScoreCard';
 import TranscriptionCard from '../components/TranscriptionCard';
+import { calculateDuration } from '../utils/helpers';
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -54,6 +55,10 @@ const DebateResultsPage = () => {
         const debateData = await debateResponse.json();
         setDebate(debateData);
         console.log("[RESULTS] Debate data:", debateData);
+        
+        // Calculate debate duration
+        const duration = calculateDuration(debateData.created_at, debateData.ended_at);
+        debateData.duration = duration;
         
         // Set initial grading status from debate data
         if (debateData.scoring_status) {
@@ -450,7 +455,7 @@ const DebateResultsPage = () => {
             minute: '2-digit',
             hour12: true
           })}
-          duration="4 Minutes"
+          duration={calculateDuration(debate.createdAt, debate.endedAt)}
           participants={2}
           winner={participants.find(p => p.is_winner)?.username}
         />
