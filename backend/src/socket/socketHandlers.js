@@ -427,12 +427,7 @@ const initializeSocketEvents = (io, supabase, debateRooms, updateDebateStatusCal
                 }
 
                 // Check again if we have enough participants after recovery attempt
-                if (!debateRoom.participants || !Array.isArray(debateRoom.participants) || debateRoom.participants.length < 2) {
-                  io.to(debateId).emit('debate_error', {
-                    message: 'Cannot start debate: not enough participants'
-                  });
-                  return;
-                }
+                
               }
 
               // Validate that all participants have userId

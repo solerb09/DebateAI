@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import DebateHero from '../components/DebateHero';
@@ -6,6 +6,10 @@ import ScoreCard from '../components/ScoreCard';
 import TranscriptionCard from '../components/TranscriptionCard';
 
 const API_URL = import.meta.env.VITE_API_URL;
+
+// Constants for polling
+const POLLING_INTERVAL = 5000; // 5 seconds
+const MAX_POLLING_ATTEMPTS = 60; // 5 minutes maximum
 
 /**
  * Page to view debate results after the debate is complete
@@ -15,13 +19,18 @@ const DebateResultsPage = () => {
   const { user, isAuthenticated } = useAuth();
   const [debate, setDebate] = useState(null);
   const [transcriptions, setTranscriptions] = useState([]);
-  const [scores, setScores] = useState({ ai: 0, human: 0 });
-  const [winner, setWinner] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [debugInfo, setDebugInfo] = useState({});
-  const [transcriptionStatus, setTranscriptionStatus] = useState('idle'); // 'idle', 'processing', 'completed', 'error'
+  const [transcriptionStatus, setTranscriptionStatus] = useState('idle');
+  const [participants, setParticipants] = useState([]);
   
+  // New state for grading
+  const [gradingStatus, setGradingStatus] = useState('pending');
+  const [gradingError, setGradingError] = useState(null);
+  const [pollingCount, setPollingCount] = useState(0);
+  const [pollingTimer, setPollingTimer] = useState(null);
+
   // Fetch debate details and transcriptions
   useEffect(() => {
     if (!debateId) return;
@@ -37,13 +46,25 @@ const DebateResultsPage = () => {
         const debateResponse = await fetch(`${API_URL}/api/debates/${debateId}`);
         
         if (!debateResponse.ok) {
-          console.error(`[RESULTS] Error ${debateResponse.status} fetching debate details`);
-          throw new Error(`Server responded with ${debateResponse.status}`);
+          const errorText = await debateResponse.text();
+          console.error(`[RESULTS] Error ${debateResponse.status} fetching debate details:`, errorText);
+          throw new Error(`Server responded with ${debateResponse.status}: ${errorText}`);
         }
         
         const debateData = await debateResponse.json();
         setDebate(debateData);
         console.log("[RESULTS] Debate data:", debateData);
+        
+        // Set initial grading status from debate data
+        if (debateData.scoring_status) {
+          console.log("[RESULTS] Initial scoring status:", debateData.scoring_status);
+          setGradingStatus(debateData.scoring_status);
+          
+          // If already processing, start polling
+          if (debateData.scoring_status === 'processing') {
+            startPolling();
+          }
+        }
         
         const debugData = { debateInfo: debateData };
         
@@ -62,8 +83,6 @@ const DebateResultsPage = () => {
                 console.log('[RESULTS] Transcriptions are still being processed');
                 setTranscriptionStatus('processing');
                 setTranscriptions([]);
-                setScores({ ai: 0, human: 0 });
-                setWinner(null);
               } else if (responseData.data && responseData.data.length > 0) {
                 console.log(`[RESULTS] Found ${responseData.data.length} transcriptions`);
                 setTranscriptionStatus('completed');
@@ -80,10 +99,6 @@ const DebateResultsPage = () => {
                 
                 setTranscriptions(responseData.data);
                 
-                // Process transcription data for scores
-                console.log(`[RESULTS] Processing transcription data for scoring...`);
-                processTranscriptionData(responseData.data);
-                
                 // Update debug info
                 debugData.foundTranscriptions = responseData.data.length;
                 debugData.transcriptionData = responseData.data.map(t => ({
@@ -98,40 +113,30 @@ const DebateResultsPage = () => {
                 debugData.noTranscriptionsReason = "No data in response or empty data array";
                 setTranscriptionStatus('completed');
                 setTranscriptions([]);
-                setScores({ ai: 0, human: 0 });
-                setWinner(null);
               }
             } else {
               console.warn("[RESULTS] Error fetching transcriptions:", responseData);
               debugData.transcriptionError = responseData;
-              
-              // Set empty transcriptions array, no mock data
+              setTranscriptionStatus('error');
               setTranscriptions([]);
-              setScores({ ai: 0, human: 0 });
-              setWinner(null);
             }
           } else {
             console.warn("[RESULTS] Error fetching transcriptions:", responseData);
             debugData.transcriptionError = responseData;
-            
-            // Set empty transcriptions array, no mock data
+            setTranscriptionStatus('error');
             setTranscriptions([]);
-            setScores({ ai: 0, human: 0 });
-            setWinner(null);
           }
         } catch (transcriptError) {
           console.warn('[RESULTS] Error fetching transcription data:', transcriptError);
           debugData.transcriptionException = transcriptError.toString();
           
-          // Set empty transcriptions array, no mock data
           setTranscriptions([]);
-          setScores({ ai: 0, human: 0 });
-          setWinner(null);
         }
         
         setDebugInfo(debugData);
         setLoading(false);
         console.log(`[RESULTS] ========= RESULTS LOADING COMPLETE =========`);
+        
       } catch (error) {
         console.error('[RESULTS] Error fetching debate data:', error);
         setError('Failed to load debate information');
@@ -142,58 +147,6 @@ const DebateResultsPage = () => {
     
     fetchDebateData();
   }, [debateId]);
-  
-  // Process transcription data to extract scores
-  const processTranscriptionData = (transcriptions) => {
-    if (!transcriptions || transcriptions.length === 0) {
-      console.log(`[RESULTS] No transcriptions to process`);
-      return;
-    }
-    
-    try {
-      // Find pro and con transcriptions
-      const proTranscription = transcriptions.find(t => t.role === 'pro');
-      const conTranscription = transcriptions.find(t => t.role === 'con');
-      
-      console.log("[RESULTS] Processing transcriptions for scoring:");
-      console.log("[RESULTS] Pro transcription found:", !!proTranscription);
-      console.log("[RESULTS] Con transcription found:", !!conTranscription);
-      
-      // Set scores based on transcript length for now (or some other metric)
-      // In a real implementation, this would come from an AI evaluation
-      if (proTranscription && conTranscription) {
-        const proLength = proTranscription.transcript?.length || 0;
-        const conLength = conTranscription.transcript?.length || 0;
-        
-        console.log(`[RESULTS] Pro transcript length: ${proLength}, Con transcript length: ${conLength}`);
-        
-        // Simple scoring based on length with randomization for testing
-        const proScore = Math.min(100, Math.max(50, 70 + (proLength > conLength ? 15 : 0) + Math.floor(Math.random() * 10)));
-        const conScore = Math.min(100, Math.max(50, 70 + (conLength > proLength ? 15 : 0) + Math.floor(Math.random() * 10)));
-        
-        // Set scores and determine winner
-        setScores({
-          ai: proScore, 
-          human: conScore
-        });
-        
-        // Mock winner declaration - this will be replaced with real AI evaluation later
-        const winnerName = proScore > conScore ? 'AI' : 'Human';
-        setWinner(winnerName);
-        console.log(`[RESULTS] Scores calculated - Pro: ${proScore}, Con: ${conScore}`);
-        console.log(`[RESULTS] Winner determined: ${winnerName}`);
-      } else {
-        // For now, we won't set a mock winner if we don't have both transcripts
-        console.warn("[RESULTS] Missing either pro or con transcription, no scores calculated");
-        setScores({ ai: 0, human: 0 });
-        setWinner(null);
-      }
-    } catch (error) {
-      console.error('[RESULTS] Error processing transcription data:', error);
-      setScores({ ai: 0, human: 0 });
-      setWinner(null);
-    }
-  };
   
   // Extract key points from the transcription
   const getKeyPoints = (role) => {
@@ -229,23 +182,6 @@ const DebateResultsPage = () => {
     }
   };
   
-  // Get the title for each side
-  const getSideTitle = (role) => {
-    // If we have real transcription data with roles, use those
-    if (transcriptions.length > 0) {
-      if (role === 'pro') {
-        const proTranscription = transcriptions.find(t => t.role === 'pro');
-        return proTranscription?.user?.username || proTranscription?.user?.email || 'Pro Speaker';
-      } else {
-        const conTranscription = transcriptions.find(t => t.role === 'con');
-        return conTranscription?.user?.username || conTranscription?.user?.email || 'Con Speaker';
-      }
-    }
-    
-    // Default titles if no transcriptions
-    return role === 'pro' ? 'Pro Speaker' : 'Con Speaker';
-  };
-  
   // Format transcriptions for the TranscriptionCard
   const formatTranscriptions = () => {
     const proTranscript = transcriptions
@@ -275,6 +211,213 @@ const DebateResultsPage = () => {
     return { proTranscript, conTranscript };
   };
   
+  // Get the title for each side
+  const getSideTitle = (role) => {
+    if (transcriptions.length > 0) {
+      if (role === 'pro') {
+        const proTranscription = transcriptions.find(t => t.role === 'pro');
+        return proTranscription?.user?.username || proTranscription?.user?.email || 'Pro Speaker';
+      } else {
+        const conTranscription = transcriptions.find(t => t.role === 'con');
+        return conTranscription?.user?.username || conTranscription?.user?.email || 'Con Speaker';
+      }
+    }
+    return role === 'pro' ? 'Pro Speaker' : 'Con Speaker';
+  };
+  
+  // Fetch grading status
+  const fetchGradingStatus = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/grading/${debateId}/status`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch grading status');
+      }
+      
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch grading status');
+      }
+
+      const { status, scores } = data.data;
+      setGradingStatus(status);
+
+      if (status === 'completed' && scores) {
+        // Transform scores into participants array
+        const participantsData = Object.entries(scores).map(([side, data]) => {
+          const transcription = transcriptions.find(t => t.role === side);
+          return {
+            id: transcription?.user_id,  // Get user_id from matching transcription
+            side: side,
+            username: transcription?.user?.username || transcription?.user?.email || (side === 'pro' ? 'Pro Speaker' : 'Con Speaker'),
+            score_breakdown: {
+              argument_quality: {
+                score: data.score_breakdown.scores.argument_quality,
+                explanation: data.score_breakdown.explanations.argument_quality
+              },
+              communication_skills: {
+                score: data.score_breakdown.scores.communication_skills,
+                explanation: data.score_breakdown.explanations.communication_skills
+              },
+              topic_understanding: {
+                score: data.score_breakdown.scores.topic_understanding,
+                explanation: data.score_breakdown.explanations.topic_understanding
+              },
+              total_score: data.score_breakdown.scores.total,
+              summary: data.score_breakdown.summary
+            },
+            is_winner: data.is_winner
+          };
+        });
+
+        
+        setParticipants(participantsData);
+        
+        // Remove setting gradingResults since we're not using it anymore
+        if (pollingTimer) {
+          clearInterval(pollingTimer);
+          setPollingTimer(null);
+        }
+      } else if (status === 'failed') {
+        setGradingError('Grading process failed');
+        if (pollingTimer) {
+          clearInterval(pollingTimer);
+          setPollingTimer(null);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching grading status:', error);
+      setGradingError(error.message);
+    }
+  }, [debateId, pollingTimer, transcriptions]);
+
+  // Start grading process
+  const startGrading = async () => {
+    try {
+      setGradingError(null);
+      
+      // Double check current status before starting
+      await fetchGradingStatus();
+      
+      // Only proceed if we're in a valid state to start
+      if (gradingStatus !== 'pending' && gradingStatus !== 'failed') {
+        console.log("[GRADING] Cannot start grading, current status:", gradingStatus);
+        return;
+      }
+
+      console.log("[GRADING] Starting grading process...");
+      const response = await fetch(`${API_URL}/api/grading/${debateId}/start`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to start grading');
+      }
+
+      console.log("[GRADING] Successfully started grading process");
+      setGradingStatus('processing');
+      startPolling();
+    } catch (error) {
+      console.error('[GRADING] Error starting grading:', error);
+      setGradingError(error.message);
+      // Don't set status to failed here, as it might have been updated by the backend
+      await fetchGradingStatus(); // Refresh the status from backend
+    }
+  };
+
+  // Start polling for grading status
+  const startPolling = useCallback(() => {
+    // If we already have a polling timer, don't start another one
+    if (pollingTimer) {
+      console.log("[GRADING] Polling already in progress, skipping...");
+      return;
+    }
+
+    console.log("[GRADING] Starting new polling interval");
+    setPollingCount(0);
+    
+    // Start new polling interval
+    const timer = setInterval(async () => {
+      setPollingCount(count => {
+        const newCount = count + 1;
+        
+        // Stop polling if we've reached max attempts
+        if (newCount >= MAX_POLLING_ATTEMPTS) {
+          console.log("[GRADING] Max polling attempts reached, stopping");
+          clearInterval(timer);
+          setPollingTimer(null);
+          setGradingError('Grading process timed out');
+          return count;
+        }
+        
+        return newCount;
+      });
+
+      await fetchGradingStatus();
+    }, POLLING_INTERVAL);
+
+    setPollingTimer(timer);
+
+    // Initial fetch
+    fetchGradingStatus();
+  }, [fetchGradingStatus, pollingTimer]);
+
+  // Check grading status when transcriptions are ready
+  useEffect(() => {
+    if (transcriptionStatus === 'completed' && transcriptions.length > 0) {
+      // Skip if already completed
+      if (gradingStatus === 'completed') {
+        return;
+      }
+
+      // First check current status
+      fetchGradingStatus().then(() => {
+        // Skip further processing if completed
+        if (gradingStatus === 'completed') {
+          return;
+        }
+        
+        switch (gradingStatus) {
+          case 'pending':
+          case 'failed':
+            console.log("[GRADING] Starting grading process...");
+            startGrading();
+            break;
+          case 'processing':
+            if (!pollingTimer) {
+              console.log("[GRADING] Grading in progress, starting polling...");
+              startPolling();
+            }
+            break;
+          default:
+            console.log("[GRADING] Unknown status:", gradingStatus);
+        }
+      }).catch(error => {
+        console.error("[GRADING] Error checking grading status:", error);
+        setGradingError(error.message);
+      });
+    }
+  }, [transcriptionStatus, transcriptions.length, gradingStatus, startGrading, startPolling, pollingTimer, fetchGradingStatus]);
+
+  // Cleanup polling on unmount or when status changes to completed/failed
+  useEffect(() => {
+    if (gradingStatus === 'completed' || gradingStatus === 'failed') {
+      if (pollingTimer) {
+        console.log("[GRADING] Stopping polling due to status:", gradingStatus);
+        clearInterval(pollingTimer);
+        setPollingTimer(null);
+      }
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (pollingTimer) {
+        console.log("[GRADING] Cleaning up polling timer");
+        clearInterval(pollingTimer);
+      }
+    };
+  }, [gradingStatus, pollingTimer]);
+
   if (loading) {
     return <div className="loading">Loading debate results...</div>;
   }
@@ -304,43 +447,27 @@ const DebateResultsPage = () => {
           endTime={debate.end_time}
           duration="1h 30m"
           participants={2}
-          winner={winner ? getSideTitle(winner.toLowerCase() === 'ai' ? 'pro' : 'con') : null}
+          winner={participants.find(p => p.is_winner)?.username}
         />
-      )}
-      
-      {winner && (
-        <div className="winner-announcement">
-          <h2>{winner} has been declared the winner!</h2>
-        </div>
       )}
       
       <div className="score-cards-container">
         {transcriptions.length > 0 ? (
           <>
-            <ScoreCard
-              position="Pro Position"
-              username={getSideTitle('pro')}
-              title="AI Ethics Researcher"
-              scores={{
-                argument_quality: scores.ai * 10,
-                communication_skills: scores.ai * 10,
-                topic_understanding: scores.ai * 10,
-                total: scores.ai * 10
-              }}
-              isWinner={winner?.toLowerCase() === 'ai'}
-            />
-            <ScoreCard
-              position="Con Position"
-              username={getSideTitle('con')}
-              title="Debate Participant"
-              scores={{
-                argument_quality: scores.human * 10,
-                communication_skills: scores.human * 10,
-                topic_understanding: scores.human * 10,
-                total: scores.human * 10
-              }}
-              isWinner={winner?.toLowerCase() === 'human'}
-            />
+            {participants.length > 0 ? (
+              participants.map((participant) => (
+                <ScoreCard
+                  key={participant.id}
+                  participant={participant}
+                  score_breakdown={participant.score_breakdown}
+                  isWinner={participant.is_winner}
+                />
+              ))
+            ) : (
+              <div className="loading-scores">
+                <p>Waiting for debate scores...</p>
+              </div>
+            )}
           </>
         ) : (
           <div className="no-transcriptions-message" style={{ textAlign: 'center', margin: '2rem 0' }}>
@@ -360,11 +487,63 @@ const DebateResultsPage = () => {
         )}
       </div>
       
-      {transcriptions.length > 0 && (
+      {transcriptionStatus === 'processing' && (
+        <div className="status-message">
+          <p>Processing transcriptions...</p>
+        </div>
+      )}
+      
+      {transcriptionStatus === 'error' && (
+        <div className="status-message error">
+          <p>Error loading transcriptions. Please try again later.</p>
+        </div>
+      )}
+      
+      {transcriptionStatus === 'completed' && transcriptions.length > 0 && (
         <TranscriptionCard
           proTranscript={proTranscript}
           conTranscript={conTranscript}
         />
+      )}
+      
+      {gradingError && (
+        <div className="error-banner" style={{
+          backgroundColor: '#fff3f3',
+          border: '1px solid #ffcdd2',
+          borderRadius: '8px',
+          padding: '16px',
+          margin: '16px 0',
+          textAlign: 'center'
+        }}>
+          <p style={{ color: '#d32f2f', marginBottom: '12px' }}>{gradingError}</p>
+          {gradingStatus === 'failed' && (
+            <button 
+              className="btn btn-primary"
+              onClick={startGrading}
+              style={{
+                backgroundColor: '#2196f3',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: '500',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseOver={(e) => e.target.style.backgroundColor = '#1976d2'}
+              onMouseOut={(e) => e.target.style.backgroundColor = '#2196f3'}
+            >
+              Retry Grading
+            </button>
+          )}
+        </div>
+      )}
+
+      {gradingStatus === 'processing' && (
+        <div className="grading-status">
+          <p>AI is analyzing the debate...</p>
+          <div className="loading-spinner">⌛</div>
+        </div>
       )}
       
       <div className="actions">
