@@ -11,6 +11,7 @@ import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage'; 
 import { AuthContext, AuthProvider } from './contexts/AuthContext'; 
 import ProfilePage from './pages/ProfilePage';
+import LeaderboardPage from './pages/LeaderboardPage';
 
 function ProtectedRoute({ children }) {
 
@@ -70,6 +71,12 @@ function App() {
               <Route path="/profile" element={
                 <ProtectedRoute>
                   <ProfilePage />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/leaderboard" element={
+                <ProtectedRoute>
+                  <LeaderboardPage />
                 </ProtectedRoute>
               } />
               
