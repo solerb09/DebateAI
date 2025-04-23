@@ -33,8 +33,27 @@ const ScoreCard = ({ participant, score_breakdown, isWinner }) => {
     }));
   };
 
+  // Function to determine the highest scoring category
+  const getHighestScoringCategory = () => {
+    const scores = {
+      argument: score_breakdown.argument_quality.score,
+      communication: score_breakdown.communication_skills.score,
+      topic: score_breakdown.topic_understanding.score
+    };
+
+    const maxScore = Math.max(...Object.values(scores));
+    const highestCategories = Object.entries(scores)
+      .filter(([_, score]) => score === maxScore)
+      .map(([category]) => category);
+
+    // Only return if there's exactly one highest category (no ties)
+    return highestCategories.length === 1 ? highestCategories[0] : null;
+  };
+
+  const highestCategory = getHighestScoringCategory();
+
   const renderScoreItem = (score, label, explanation, category) => (
-    <div className="score-item" onClick={() => toggleExplanation(category)}>
+    <div className={`score-item ${category === highestCategory ? 'highest-score' : ''}`} onClick={() => toggleExplanation(category)}>
       <div className="score-row">
         <span className="metric">{label}</span>
         <span className="value">{score}/10</span>

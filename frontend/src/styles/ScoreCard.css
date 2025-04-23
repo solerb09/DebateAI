@@ -96,11 +96,21 @@
 .score-item {
   cursor: pointer;
   transition: all 0.2s ease;
+  padding: 8px;
+  border-radius: 8px;
 }
 
 .score-item:hover {
   background: #f9f9f9;
-  border-radius: 8px;
+}
+
+.score-item.highest-score {
+  background-color: rgba(66, 153, 225, 0.1);
+  border: 1px solid rgba(66, 153, 225, 0.2);
+}
+
+.score-item.highest-score:hover {
+  background-color: rgba(66, 153, 225, 0.15);
 }
 
 .score-row {
