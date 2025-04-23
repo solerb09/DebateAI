@@ -446,7 +446,15 @@ const DebateResultsPage = () => {
 
   // Show confetti when winner is detected
   useEffect(() => {
-    if (participants.some(p => p.is_winner)) {
+    console.log('[CONFETTI] Checking confetti conditions...');
+    console.log('[CONFETTI] Current user:', user?.id);
+    console.log('[CONFETTI] Participants:', participants);
+    
+    const winner = participants.find(p => p.is_winner);
+    console.log('[CONFETTI] Winner found:', winner);
+    
+    if (winner && user?.id === winner.id) {
+      console.log('[CONFETTI] Current user is the winner! Showing confetti...');
       setShowConfetti(true);
       setConfettiOpacity(1);
       
@@ -464,8 +472,10 @@ const DebateResultsPage = () => {
         clearTimeout(fadeOutTimer);
         clearTimeout(hideTimer);
       };
+    } else {
+      console.log('[CONFETTI] Not showing confetti - either no winner or current user is not the winner');
     }
-  }, [participants]);
+  }, [participants, user]);
 
   if (loading) {
     return <div className="loading">Loading debate results...</div>;
