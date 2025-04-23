@@ -9,6 +9,7 @@ import PerformanceStats from '../components/PerformanceStats';
 import TopCategories from '../components/TopCategories';
 import DebateHistory from '../components/DebateHistory';
 import Button from '../components/Button';
+import { calculateDuration } from '../utils/helpers';
 
 function ProfilePage() {
   const { user, profile, refreshProfile } = useAuth();
@@ -293,23 +294,6 @@ function ProfilePage() {
     
     fetchUserDebates();
   }, [user]);
-
-  // Helper function to calculate debate duration
-  const calculateDuration = (startTime, endTime) => {
-    if (!startTime || !endTime) return 'Unknown';
-    
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-    const diffInMinutes = Math.round((end - start) / (1000 * 60));
-    
-    if (diffInMinutes < 60) {
-      return `${diffInMinutes}m`;
-    } else {
-      const hours = Math.floor(diffInMinutes / 60);
-      const minutes = diffInMinutes % 60;
-      return `${hours}h ${minutes}m`;
-    }
-  };
 
   // Populate form and profile data with user data
   useEffect(() => {

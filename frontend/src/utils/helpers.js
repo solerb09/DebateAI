@@ -24,4 +24,26 @@ export const calculateCenterPoints = (rect) => {
     x: rect.left + rect.width / 2,
     y: rect.top + rect.height / 2
   };
+};
+
+/**
+ * Calculate duration between two timestamps
+ * @param {string} startTime - Start timestamp
+ * @param {string} endTime - End timestamp
+ * @returns {string} - Formatted duration string
+ */
+export const calculateDuration = (startTime, endTime) => {
+  if (!startTime || !endTime) return 'Unknown';
+  
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  const diffInMinutes = Math.round((end - start) / (1000 * 60));
+  
+  if (diffInMinutes < 60) {
+    return `${diffInMinutes}m`;
+  } else {
+    const hours = Math.floor(diffInMinutes / 60);
+    const minutes = diffInMinutes % 60;
+    return `${hours}h ${minutes}m`;
+  }
 }; 
