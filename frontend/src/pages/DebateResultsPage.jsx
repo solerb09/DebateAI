@@ -5,6 +5,8 @@ import DebateHero from '../components/DebateHero';
 import ScoreCard from '../components/ScoreCard';
 import TranscriptionCard from '../components/TranscriptionCard';
 import { calculateDuration } from '../utils/helpers';
+import Confetti from 'react-confetti';
+
 
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -31,6 +33,12 @@ const DebateResultsPage = () => {
   const [gradingError, setGradingError] = useState(null);
   const [pollingCount, setPollingCount] = useState(0);
   const [pollingTimer, setPollingTimer] = useState(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [confettiOpacity, setConfettiOpacity] = useState(1);
+  const [windowSize, setWindowSize] = useState({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  });
 
   // Fetch debate details and transcriptions
   useEffect(() => {
@@ -423,6 +431,42 @@ const DebateResultsPage = () => {
     };
   }, [gradingStatus, pollingTimer]);
 
+  // Add window resize handler
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Show confetti when winner is detected
+  useEffect(() => {
+    if (participants.some(p => p.is_winner)) {
+      setShowConfetti(true);
+      setConfettiOpacity(1);
+      
+      // Start fade out after 3 seconds
+      const fadeOutTimer = setTimeout(() => {
+        setConfettiOpacity(0);
+      }, 3000);
+      
+      // Hide confetti completely after fade out
+      const hideTimer = setTimeout(() => {
+        setShowConfetti(false);
+      }, 5000);
+      
+      return () => {
+        clearTimeout(fadeOutTimer);
+        clearTimeout(hideTimer);
+      };
+    }
+  }, [participants]);
+
   if (loading) {
     return <div className="loading">Loading debate results...</div>;
   }
@@ -443,6 +487,26 @@ const DebateResultsPage = () => {
 
   return (
     <div className="debate-results-page">
+      {showConfetti && (
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          width: '100%', 
+          height: '100%', 
+          pointerEvents: 'none',
+          opacity: confettiOpacity,
+          transition: 'opacity 2s ease-out'
+        }}>
+          <Confetti
+            width={windowSize.width}
+            height={windowSize.height}
+            recycle={false}
+            numberOfPieces={200}
+            gravity={0.3}
+          />
+        </div>
+      )}
       {debate && (
         <DebateHero
           title={debate.title}
