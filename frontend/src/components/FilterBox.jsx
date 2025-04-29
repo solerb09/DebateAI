@@ -36,7 +36,7 @@ const FilterBox = ({
         <div className="search-input-container">
           <input
             type="text"
-            placeholder="Search debates and press Enter..."
+            placeholder="Search debates."
             className="search-input"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
