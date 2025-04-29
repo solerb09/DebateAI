@@ -44,7 +44,23 @@ const DebateListPage = () => {
       try {
         setLoading(true);
         
-        // First get the debates with their rooms and participants
+        // First get the category ID if a specific category is selected
+        let categoryId = null;
+        if (selectedCategory !== 'All Categories') {
+          const { data: categoryData, error: categoryError } = await supabase
+            .from('categories')
+            .select('id')
+            .eq('name', selectedCategory)
+            .single();
+          
+          if (categoryError) {
+            console.error('Error fetching category ID:', categoryError);
+          } else if (categoryData) {
+            categoryId = categoryData.id;
+          }
+        }
+        
+        // Build the base query
         let query = supabase
           .from('debate_topics')
           .select(`
@@ -52,7 +68,8 @@ const DebateListPage = () => {
             title,
             description,
             created_at,
-            categories(name),
+            category_id,
+            categories!debate_topics_category_id_fkey(name),
             debate_rooms(
               id,
               status,
@@ -66,8 +83,8 @@ const DebateListPage = () => {
           .order('created_at', { ascending: sortBy === 'Oldest First' });
 
         // Apply category filter if selected
-        if (selectedCategory !== 'All Categories') {
-          query = query.eq('categories.name', selectedCategory);
+        if (categoryId) {
+          query = query.eq('category_id', categoryId);
         }
 
         const { data: topics, error: topicsError } = await query;
@@ -201,13 +218,19 @@ const DebateListPage = () => {
           </div>
 
           <div className="debates-grid">
-            {debates.map(debate => (
-              <DebateCard 
-                key={debate.id}
-                {...debate}
-                onClick={() => handleDebateClick(debate)}
-              />
-            ))}
+            {debates.length === 0 ? (
+              <div className="no-debates-message">
+                No debates found for the selected filters.
+              </div>
+            ) : (
+              debates.map(debate => (
+                <DebateCard 
+                  key={debate.id}
+                  {...debate}
+                  onClick={() => handleDebateClick(debate)}
+                />
+              ))
+            )}
           </div>
         </div>
       </div>

@@ -298,10 +298,10 @@ class AIGradingService {
 Debate Topic: ${topic}
 Topic Description: ${description}
 
-Pro Side Transcript:
+Pro Side Approximate Transcript:
 ${proTranscript}
 
-Con Side Transcript:
+Con Side Approximate Transcript:
 ${conTranscript}
 
 Please evaluate the debate based on the following criteria and provide a score from 1-10 for each category. If a participant makes a factual claim, assess whether it is true, misleading, or false using publicly available and reliable knowledge. This outcome should affect scoring.
