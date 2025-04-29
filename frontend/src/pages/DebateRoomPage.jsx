@@ -4,6 +4,7 @@ import { io } from 'socket.io-client';
 import WebRTCService from '../services/webrtcService';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../supabaseClient';
+import '../styles/DebateRoomPage.css';
 
 // Get API URL from environment variables only
 const API_URL = import.meta.env.VITE_API_URL;
@@ -688,78 +689,63 @@ const DebateRoomPage = () => {
           </div>
         )}
         
-        {/* Debate status display */}
-        <div className="debate-status">
-          <div className="status-label">
-            {debateStatus === 'connecting' && 'Establishing connection with peer...'}
-            {debateStatus === 'waiting' && connectionState === 'connected' && 'Both participants connected. Click Ready when you are prepared to begin the debate.'}
-            {debateStatus === 'waiting' && connectionState !== 'connected' && 'Waiting for peer to connect...'}
-            {debateStatus === 'ready' && 'Both participants are ready'}
-            {debateStatus === 'countdown' && `Debate starting in ${countdown}`}
-            {debateStatus === 'debating' && 'Debate in progress'}
-            {debateStatus === 'finished' && (
-              <>
-                Debate has ended
-                <button 
-                  className="btn btn-primary view-results-btn"
-                  onClick={() => navigate(`/debates/${debateRoomId}/results`)}
-                  style={{
-                    marginLeft: '15px',
-                    padding: '5px 15px',
-                    backgroundColor: canViewResults ? '#4CAF50' : '#FFA500',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: canViewResults ? 'pointer' : 'not-allowed',
-                    fontWeight: 'bold',
-                    opacity: canViewResults ? 1 : 0.7
-                  }}
-                  disabled={!canViewResults}
-                >
-                  {canViewResults ? 'View Results' : 'Processing...'}
-                </button>
-              </>
-            )}
-          </div>
-          
-          {/* Display peer readiness status */}
-          {debateStatus === 'waiting' && connectionState === 'connected' && (
+        {/* Ready button and peer status */}
+        {debateStatus === 'waiting' && connectionState === 'connected' && (
+          <>
             <div className="peer-status">
               Peer status: {isPeerReady ? 'Ready ✓' : 'Not ready yet'}
             </div>
-          )}
-          
-          {/* Show ready button only in waiting state and when connected */}
-          {debateStatus === 'waiting' && connectionState === 'connected' && (
             <button 
               className={`btn ${isReady ? 'btn-accent' : 'btn-primary'}`}
               onClick={toggleReady}
             >
               {isReady ? 'Ready ✓' : 'Ready?'}
             </button>
-          )}
-          
-          {/* Show countdown timer */}
-          {debateStatus === 'countdown' && (
-            <div className="countdown-timer">
-              <div className="countdown-number">{countdown}</div>
+          </>
+        )}
+        
+        {/* Show countdown timer */}
+        {debateStatus === 'countdown' && (
+          <div className="countdown-timer">
+            <div className="countdown-number">{countdown}</div>
+          </div>
+        )}
+        
+        {/* Show turn information when debating */}
+        {debateStatus === 'debating' && (
+          <div className="turn-info">
+            <div className="speaking-turn">
+              Speaking: <span className={`role-${speakingTurn}`}>
+                {speakingTurn === 'pro' ? 'Affirmative' : 'Negative'} Side
+              </span>
             </div>
-          )}
-          
-          {/* Show turn information when debating */}
-          {debateStatus === 'debating' && (
-            <div className="turn-info">
-              <div className="speaking-turn">
-                Speaking: <span className={`role-${speakingTurn}`}>
-                  {speakingTurn === 'pro' ? 'Affirmative' : 'Negative'} Side
-                </span>
-              </div>
-              <div className="turn-timer">
-                Time remaining: {formatTime(turnTimer)}
-              </div>
+            <div className="turn-timer">
+              Time remaining: {formatTime(turnTimer)}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+        
+        {/* View Results button when finished */}
+        {debateStatus === 'finished' && (
+          <button 
+            className="btn btn-primary view-results-btn"
+            onClick={() => navigate(`/debates/${debateRoomId}/results`)}
+            style={{
+              marginLeft: '15px',
+              padding: '5px 15px',
+              backgroundColor: canViewResults ? '#4CAF50' : '#FFA500',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: canViewResults ? 'pointer' : 'not-allowed',
+              fontWeight: 'bold',
+              opacity: canViewResults ? 1 : 0.7
+            }}
+            disabled={!canViewResults}
+          >
+            {canViewResults ? 'View Results' : 'Processing...'}
+          </button>
+        )}
       </div>
       
       <div className="connection-status">

@@ -1,0 +1,110 @@
+.debate-room-page {
+  padding-top: 80px; /* Add padding to account for fixed header */
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+
+.debate-info {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #eaeaea;
+}
+
+.debate-info h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #000000;
+  margin: 0 0 12px 0;
+}
+
+.debate-info p {
+  font-size: 16px;
+  color: #666666;
+  margin: 0 0 16px 0;
+  line-height: 1.6;
+}
+
+.category-tag {
+  display: inline-block;
+  padding: 6px 12px;
+  background-color: #f3f4f6;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.connection-status {
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  border: 1px solid #eaeaea;
+}
+
+.status-connected {
+  color: #4CAF50;
+  font-weight: 500;
+}
+
+.status-connecting {
+  color: #FFA500;
+  font-weight: 500;
+}
+
+.status-disconnected, .status-failed, .status-completed {
+  color: #ff3333;
+  font-weight: 500;
+}
+
+.peer-status {
+  margin: 12px 0;
+  font-size: 14px;
+  color: #666666;
+}
+
+.countdown-timer {
+  margin: 12px 0;
+  text-align: center;
+}
+
+.countdown-number {
+  font-size: 36px;
+  font-weight: bold;
+  color: #4CAF50;
+}
+
+.turn-info {
+  margin: 12px 0;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+}
+
+.speaking-turn {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.turn-timer {
+  font-size: 14px;
+  color: #666666;
+}
+
+.role-pro {
+  color: #4CAF50;
+  font-weight: 500;
+}
+
+.role-con {
+  color: #ff3333;
+  font-weight: 500;
+} 
