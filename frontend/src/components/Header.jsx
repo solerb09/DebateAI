@@ -73,15 +73,6 @@ const Header = () => {
                     My Profile
                   </Button>
                   <Button
-                    as="link"
-                    href="/settings"
-                    variant="text"
-                    onClick={() => setIsDropdownOpen(false)}
-                    className="dropdown-item"
-                  >
-                    Settings
-                  </Button>
-                  <Button
                     variant="text"
                     onClick={handleLogout}
                     className="dropdown-item"
