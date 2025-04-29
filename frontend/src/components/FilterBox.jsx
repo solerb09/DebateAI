@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const FilterBox = ({ 
   categories, 
@@ -6,17 +6,56 @@ const FilterBox = ({
   setSelectedCategory, 
   sortBy, 
   setSortBy,
+  searchQuery,
+  setSearchQuery,
+  onSearch,
   debates 
 }) => {
+  const [inputValue, setInputValue] = useState('');
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setSearchQuery(inputValue);
+      onSearch(inputValue);
+    }
+  };
+
+  const handleReset = () => {
+    setSelectedCategory('All Categories');
+    setSortBy('Newest First');
+    setSearchQuery('');
+    setInputValue('');
+    onSearch('');
+  };
+
   return (
     <div className="filters-sidebar">
       <div className="search-filter-section">
         <h2>Search & Filter</h2>
-        <input
-          type="text"
-          placeholder="Search debates..."
-          className="search-input"
-        />
+        <div className="search-input-container">
+          <input
+            type="text"
+            placeholder="Search debates and press Enter..."
+            className="search-input"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyPress={handleKeyPress}
+          />
+          {inputValue && (
+            <button 
+              className="clear-search-btn"
+              onClick={() => {
+                setInputValue('');
+                setSearchQuery('');
+                onSearch('');
+              }}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+        </div>
 
         <div className="filter-section">
           <h3>Category</h3>
@@ -47,10 +86,7 @@ const FilterBox = ({
         </div>
 
         <button 
-          onClick={() => {
-            setSelectedCategory('All Categories');
-            setSortBy('Newest First');
-          }} 
+          onClick={handleReset}
           className="reset-filters-btn"
         >
           <span>Reset Filters</span>
