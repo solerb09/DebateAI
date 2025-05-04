@@ -9,6 +9,7 @@ import PerformanceStats from '../components/PerformanceStats';
 import TopCategories from '../components/TopCategories';
 import DebateHistory from '../components/DebateHistory';
 import Button from '../components/Button';
+import EditProfileModal from '../components/EditProfileModal';
 import { calculateDuration } from '../utils/helpers';
 
 function ProfilePage() {
@@ -21,6 +22,7 @@ function ProfilePage() {
   const [formData, setFormData] = useState({
     username: '',
     bio: '',
+    profile_picture_url: '',
   });
   const [error, setError] = useState(null);
   const [debatesError, setDebatesError] = useState(null);
@@ -402,8 +404,8 @@ function ProfilePage() {
 
   // Populate form and profile data with user data
   useEffect(() => {
-    if (isOwnProfile && user) {
-      // Format profile data for display for own profile
+    if (user) {
+      // Format profile data for display
       const formattedData = {
         username: profile?.username || user?.user_metadata?.username || user.email,
         bio: profile?.bio || 'No bio available.',
@@ -415,7 +417,8 @@ function ProfilePage() {
         winLossRatio: profileData.winLossRatio,
         wins: profileData.wins,
         losses: profileData.losses,
-        tags: profile?.tags || []
+        tags: profile?.tags || [],
+        profile_picture_url: profile?.profile_picture_url || user?.user_metadata?.profile_picture_url || ''
       };
       
       setProfileData(prev => ({
@@ -426,6 +429,7 @@ function ProfilePage() {
       setFormData({
         username: profile?.username || user?.user_metadata?.username || '',
         bio: profile?.bio || '',
+        profile_picture_url: profile?.profile_picture_url || '',
       });
       
       setLoading(false);
@@ -442,7 +446,8 @@ function ProfilePage() {
         winLossRatio: profileData.winLossRatio,
         wins: viewedUser.wins || 0,
         losses: viewedUser.losses || 0,
-        tags: viewedUser.tags || []
+        tags: viewedUser.tags || [],
+        profile_picture_url: viewedUser.profile_picture_url || ''
       };
       
       setProfileData(prev => ({
@@ -468,19 +473,34 @@ function ProfilePage() {
     }));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e, updatedFormData) => {
     e.preventDefault();
     
     try {
       setLoading(true);
       setError(null);
       
+      // Use either the provided updated form data (from the modal) or the component's form data
+      const dataToUpdate = updatedFormData || formData;
+
+      // Validate username length
+      if (!dataToUpdate.username.trim()) {
+        throw new Error('Username is required');
+      }
+      if (dataToUpdate.username.length < 3) {
+        throw new Error('Username must be at least 3 characters');
+      }
+      if (dataToUpdate.username.length > 20) {
+        throw new Error('Username cannot exceed 30 characters');
+      }
+      
       // Update the profile in the database
       const { error } = await supabase
         .from('users')
         .update({
-          username: formData.username,
-          bio: formData.bio,
+          username: dataToUpdate.username,
+          bio: dataToUpdate.bio,
+          profile_picture_url: dataToUpdate.profile_picture_url,
           updated_at: new Date().toISOString()
         })
         .eq('id', user.id);
@@ -489,7 +509,10 @@ function ProfilePage() {
       
       // Update user metadata
       const { error: metadataError } = await supabase.auth.updateUser({
-        data: { username: formData.username }
+        data: { 
+          username: dataToUpdate.username,
+          profile_picture_url: dataToUpdate.profile_picture_url
+        }
       });
       
       if (metadataError) throw metadataError;
@@ -519,7 +542,7 @@ function ProfilePage() {
         <div className="profile-left-column">
           <UserProfile 
             userData={profileData} 
-            onEditProfile={isOwnProfile ? handleEditProfile : null} 
+            onEditProfile={handleEditProfile} 
           />
           
           <PerformanceStats stats={performanceStats} />
@@ -536,67 +559,26 @@ function ProfilePage() {
         </div>
       </div>
       
-      {editing && isOwnProfile && (
-        <div className="edit-profile-modal">
-          <div className="edit-profile-content">
-            <h2>Edit Profile</h2>
-            
-            {error && <div className="error-message">{error}</div>}
-            {success && <div className="success-message">{success}</div>}
-            
-            <form onSubmit={handleSubmit} className="profile-form">
-              <div className="form-group">
-                <label htmlFor="username">Username</label>
-                <input
-                  type="text"
-                  id="username"
-                  name="username"
-                  value={formData.username}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
-              
-              <div className="form-group">
-                <label htmlFor="bio">Bio</label>
-                <textarea
-                  id="bio"
-                  name="bio"
-                  value={formData.bio}
-                  onChange={handleChange}
-                  rows="4"
-                  placeholder="Tell us about yourself..."
-                />
-              </div>
-              
-              <div className="profile-actions">
-                <Button 
-                  type="submit" 
-                  variant="primary"
-                  size="medium"
-                  disabled={loading}
-                >
-                  {loading ? 'Saving...' : 'Save Changes'}
-                </Button>
-                <Button 
-                  type="button"
-                  variant="secondary"
-                  size="medium"
-                  onClick={() => {
-                    setEditing(false);
-                    setFormData({
-                      username: profile?.username || user?.user_metadata?.username || '',
-                      bio: profile?.bio || '',
-                    });
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        isOpen={editing}
+        onClose={() => {
+          setEditing(false);
+          setFormData({
+            username: profile?.username || user?.user_metadata?.username || '',
+            bio: profile?.bio || '',
+            profile_picture_url: profile?.profile_picture_url || '',
+          });
+        }}
+        formData={formData}
+        onChange={handleChange}
+        onSubmit={handleSubmit}
+        error={error}
+        success={success}
+        loading={loading}
+        profile={profile}
+        user={user}
+      />
     </div>
   );
 }

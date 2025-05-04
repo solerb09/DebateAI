@@ -39,6 +39,8 @@ function SignupPage() {
       newErrors.username = 'Username is required';
     } else if (formData.username.length < 3) {
       newErrors.username = 'Username must be at least 3 characters';
+    } else if (formData.username.length > 20) {
+      newErrors.username = 'Username cannot exceed 30 characters';
     }
     
     // Email validation
@@ -133,6 +135,7 @@ function SignupPage() {
               value={formData.username}
               onChange={handleChange}
               className={errors.username ? 'input-error' : ''}
+              maxLength={20}
             />
             {errors.username && <p className="error-text">{errors.username}</p>}
           </div>
