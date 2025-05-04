@@ -690,7 +690,7 @@ const DebateRoomPage = () => {
         )}
         
         {/* Ready button and peer status */}
-        {debateStatus === 'waiting' && connectionState === 'connected' && (
+          {debateStatus === 'waiting' && connectionState === 'connected' && (
           <>
             <div className="peer-status">
               Peer status: {isPeerReady ? 'Ready ✓' : 'Not ready yet'}
@@ -702,28 +702,28 @@ const DebateRoomPage = () => {
               {isReady ? 'Ready ✓' : 'Ready?'}
             </button>
           </>
-        )}
-        
-        {/* Show countdown timer */}
-        {debateStatus === 'countdown' && (
-          <div className="countdown-timer">
-            <div className="countdown-number">{countdown}</div>
-          </div>
-        )}
-        
-        {/* Show turn information when debating */}
-        {debateStatus === 'debating' && (
-          <div className="turn-info">
-            <div className="speaking-turn">
-              Speaking: <span className={`role-${speakingTurn}`}>
-                {speakingTurn === 'pro' ? 'Affirmative' : 'Negative'} Side
-              </span>
+          )}
+          
+          {/* Show countdown timer */}
+          {debateStatus === 'countdown' && (
+            <div className="countdown-timer">
+              <div className="countdown-number">{countdown}</div>
             </div>
-            <div className="turn-timer">
-              Time remaining: {formatTime(turnTimer)}
+          )}
+          
+          {/* Show turn information when debating */}
+          {debateStatus === 'debating' && (
+            <div className="turn-info">
+              <div className="speaking-turn">
+                Speaking: <span className={`role-${speakingTurn}`}>
+                  {speakingTurn === 'pro' ? 'Affirmative' : 'Negative'} Side
+                </span>
+              </div>
+              <div className="turn-timer">
+                Time remaining: {formatTime(turnTimer)}
+              </div>
             </div>
-          </div>
-        )}
+          )}
         
         {/* View Results button when finished */}
         {debateStatus === 'finished' && (
