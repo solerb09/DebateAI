@@ -1,5 +1,5 @@
 import React, { useContext } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header';
 import HomePage from './pages/HomePage';
 import DebateListPage from './pages/DebateListPage';
@@ -9,9 +9,11 @@ import DebateResultsPage from './pages/DebateResultsPage';
 import NotFoundPage from './pages/NotFoundPage';
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage'; 
+import WaitlistPage from './pages/WaitlistPage';
 import { AuthContext, AuthProvider } from './contexts/AuthContext'; 
 import ProfilePage from './pages/ProfilePage';
 import LeaderboardPage from './pages/LeaderboardPage';
+import './styles/App.css';
 
 function ProtectedRoute({ children }) {
 
@@ -35,11 +37,14 @@ function ProtectedRoute({ children }) {
 }
 
 function App() {
+  const location = useLocation();
+  const isWaitlistPage = location.pathname === '/waitlist';
+  
   return (
     <AuthProvider>
       <div className="app">
         <Header />
-        <main className="container">
+        <main className={!isWaitlistPage ? "main-content container" : "main-content"}>
             <Routes>
               <Route path="/" element={<HomePage />} />
               
@@ -83,6 +88,7 @@ function App() {
               } />
               
               {/* Public routes */}
+              <Route path="/waitlist" element={<WaitlistPage />} />
               <Route path="/login" element={<LoginPage />} /> 
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/404" element={<NotFoundPage />} />

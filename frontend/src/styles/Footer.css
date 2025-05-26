@@ -1,0 +1,141 @@
+.site-footer {
+  background-color: #1e293b;
+  color: #f1f5f9;
+  padding: 4rem 2rem 2rem;
+  margin-top: auto;
+  width: 100%;
+}
+
+.footer-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 3rem;
+}
+
+.footer-logo-section {
+  flex: 1;
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.footer-logo {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+
+.footer-tagline {
+  color: #94a3b8;
+  margin: 0;
+}
+
+.footer-links {
+  flex: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+}
+
+.footer-link-column {
+  flex: 1;
+  min-width: 150px;
+}
+
+.footer-link-column h4 {
+  color: #f8fafc;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+}
+
+.footer-link-column ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.footer-link-column li {
+  margin-bottom: 0.75rem;
+}
+
+.footer-link-column a {
+  color: #cbd5e1;
+  text-decoration: none;
+  transition: color 0.2s ease;
+  font-size: 0.9rem;
+}
+
+.footer-link-column a:hover {
+  color: #f8fafc;
+}
+
+.footer-bottom {
+  max-width: 1200px;
+  margin: 4rem auto 0;
+  padding-top: 2rem;
+  border-top: 1px solid #334155;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.footer-bottom p {
+  color: #94a3b8;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.social-links {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.social-links a {
+  color: #94a3b8;
+  font-size: 1.25rem;
+  transition: color 0.2s ease;
+}
+
+.social-links a:hover {
+  color: #f8fafc;
+}
+
+@media (max-width: 768px) {
+  .footer-container {
+    flex-direction: column;
+    gap: 2rem;
+  }
+  
+  .footer-logo-section {
+    max-width: 100%;
+  }
+  
+  .footer-links {
+    gap: 1.5rem;
+  }
+  
+  .footer-bottom {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-top: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-footer {
+    padding: 3rem 1rem 1.5rem;
+  }
+  
+  .footer-links {
+    flex-direction: column;
+  }
+  
+  .footer-link-column {
+    min-width: 100%;
+  }
+} 

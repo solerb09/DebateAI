@@ -23,8 +23,13 @@
   text-decoration: none;
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding-left: 1.5rem;
+}
+
+.logo-image {
+  height: 80px;
+  width: auto;
+  object-fit: contain;
+  margin: -20px 0;
 }
 
 .logo-text-primary {
@@ -56,6 +61,19 @@
 
 .nav-link:hover {
   color: #000000;
+}
+
+.waitlist-nav-link {
+  color: #2563eb;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 4px;
+  background-color: rgba(37, 99, 235, 0.1);
+}
+
+.waitlist-nav-link:hover {
+  color: #1d4ed8;
+  background-color: rgba(37, 99, 235, 0.15);
 }
 
 .auth-section {
