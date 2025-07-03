@@ -13,6 +13,11 @@ const FilterBox = ({
 }) => {
   const [inputValue, setInputValue] = useState('');
 
+  // Update input value when searchQuery changes (e.g., from URL parameter)
+  React.useEffect(() => {
+    setInputValue(searchQuery);
+  }, [searchQuery]);
+
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
