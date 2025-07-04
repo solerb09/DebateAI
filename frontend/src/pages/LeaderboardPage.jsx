@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import LeaderboardTable from '../components/LeaderboardTable';
 import PerformerCard from '../components/PerformerCard';
@@ -17,66 +17,109 @@ function LeaderboardPage() {
   const [categories, setCategories] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Fetch debaters data from Supabase
-  useEffect(() => {
-    const fetchLeaderboardData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  // Optimized data fetching with combined queries
+  const fetchLeaderboardData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-        // Fetch categories
-        const { data: categoriesData, error: categoriesError } = await supabase
-          .from('categories')
-          .select('id, name');
+      // Fetch both categories and users in parallel
+      const [categoriesResult, usersResult] = await Promise.all([
+        supabase.from('categories').select('id, name'),
+        supabase.from('users').select('id, username, bio, wins, losses')
+      ]);
 
-        if (categoriesError) throw categoriesError;
-        setCategories(categoriesData || []);
+      if (categoriesResult.error) throw categoriesResult.error;
+      if (usersResult.error) throw usersResult.error;
 
-        // Fetch users with their debate statistics
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select(`
-            id, 
-            username,
-            bio,
-            wins,
-            losses
-          `);
+      setCategories(categoriesResult.data || []);
 
-        if (userError) throw userError;
+      // Get enhanced user data
+      const topUsers = await processUserData(usersResult.data || []);
+      
+      // Sort by win rate instead of wins
+      const sortedUsers = topUsers.sort((a, b) => (b.winRate || 0) - (a.winRate || 0));
+      
+      // Reassign ranks based on new sorting
+      sortedUsers.forEach((user, index) => {
+        user.rank = index + 1;
+      });
+      
+      setDebaters(sortedUsers);
 
-        // Get top debaters with additional data
-        const topUsers = await processUserData(userData || []);
-        
-        // Sort by win rate instead of wins
-        const sortedUsers = topUsers.sort((a, b) => (b.winRate || 0) - (a.winRate || 0));
-        
-        // Reassign ranks based on new sorting
-        sortedUsers.forEach((user, index) => {
-          user.rank = index + 1;
-        });
-        
-        setDebaters(sortedUsers);
+      // Calculate top performers
+      const performers = calculateTopPerformers(sortedUsers);
+      setTopPerformers(performers);
 
-        // Calculate top performers
-        const performers = calculateTopPerformers(sortedUsers);
-        console.log("Top performers:", performers); // Debug log
-        setTopPerformers(performers);
-
-      } catch (err) {
-        console.error('Error fetching leaderboard data:', err);
-        setError('Failed to load leaderboard data');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchLeaderboardData();
+    } catch (err) {
+      console.error('Error fetching leaderboard data:', err);
+      setError('Failed to load leaderboard data');
+    } finally {
+      setLoading(false);
+    }
   }, [timeFilter, categoryFilter]);
 
-  // Process user data to add additional stats
+  useEffect(() => {
+    fetchLeaderboardData();
+  }, [fetchLeaderboardData]);
+
+  // Process user data to add additional stats - OPTIMIZED VERSION
   const processUserData = async (users) => {
-    const enhancedUsers = await Promise.all(users.map(async (user, index) => {
+    if (users.length === 0) return [];
+
+    // Get all user IDs
+    const userIds = users.map(user => user.id);
+
+    // Single query to get all participation data with categories and scores
+    const { data: allParticipations, error: participationsError } = await supabase
+      .from('debate_participants')
+      .select(`
+        user_id,
+        score_breakdown,
+        debate_rooms(
+          id,
+          debate_topics(
+            id,
+            category_id,
+            categories(name)
+          )
+        )
+      `)
+      .in('user_id', userIds);
+
+    if (participationsError) {
+      console.error('Error fetching participations:', participationsError);
+    }
+
+    // Group participation data by user
+    const userParticipationMap = new Map();
+    const userScoresMap = new Map();
+
+    if (allParticipations) {
+      allParticipations.forEach(participation => {
+        const userId = participation.user_id;
+        
+        // Group participations for category counting
+        if (!userParticipationMap.has(userId)) {
+          userParticipationMap.set(userId, []);
+        }
+        userParticipationMap.get(userId).push(participation);
+
+        // Group scores for average calculation
+        if (participation.score_breakdown && 
+            participation.score_breakdown.scores && 
+            typeof participation.score_breakdown.scores.total === 'number') {
+          
+          if (!userScoresMap.has(userId)) {
+            userScoresMap.set(userId, []);
+          }
+          userScoresMap.get(userId).push(participation.score_breakdown.scores.total);
+        }
+      });
+    }
+
+    // Process each user with the pre-fetched data
+    const enhancedUsers = users.map((user, index) => {
       // Calculate total debates
       const totalDebates = (user.wins || 0) + (user.losses || 0);
       
@@ -85,27 +128,13 @@ function LeaderboardPage() {
         ? Math.round(((user.wins || 0) / totalDebates) * 100)
         : 0;
 
-      // Fetch user's top category
-      const { data: participations, error: participationsError } = await supabase
-        .from('debate_participants')
-        .select(`
-          id,
-          debate_rooms(
-            id,
-            debate_topics(
-              id,
-              category_id,
-              categories(name)
-            )
-          )
-        `)
-        .eq('user_id', user.id);
-
+      // Calculate top category from pre-fetched data
       let topCategory = 'N/A';
-      if (!participationsError && participations && participations.length > 0) {
-        // Count categories
+      const userParticipations = userParticipationMap.get(user.id) || [];
+      
+      if (userParticipations.length > 0) {
         const categoryCount = {};
-        participations.forEach(participation => {
+        userParticipations.forEach(participation => {
           const categoryName = participation.debate_rooms?.debate_topics?.categories?.name;
           if (categoryName) {
             categoryCount[categoryName] = (categoryCount[categoryName] || 0) + 1;
@@ -122,34 +151,13 @@ function LeaderboardPage() {
         });
       }
 
-      // Fetch average score - updated to get scores out of 30
-      const { data: scores, error: scoresError } = await supabase
-        .from('debate_participants')
-        .select(`
-          id,
-          score_breakdown
-        `)
-        .eq('user_id', user.id)
-        .not('score_breakdown', 'is', null);
-
+      // Calculate average score from pre-fetched data
       let avgScore = 0;
-      if (!scoresError && scores && scores.length > 0) {
-        // Filter valid scores (those with score_breakdown that has scores.total)
-        const validScores = scores.filter(item => 
-          item.score_breakdown && 
-          item.score_breakdown.scores && 
-          typeof item.score_breakdown.scores.total === 'number'
-        );
-        
-        if (validScores.length > 0) {
-          // Calculate average of total scores
-          const sum = validScores.reduce((acc, curr) => {
-            return acc + curr.score_breakdown.scores.total;
-          }, 0);
-          
-          avgScore = (sum / validScores.length).toFixed(1);
-          console.log(`User ${user.username} has average score: ${avgScore}/30 from ${validScores.length} debates`);
-        }
+      const userScores = userScoresMap.get(user.id) || [];
+      
+      if (userScores.length > 0) {
+        const sum = userScores.reduce((acc, score) => acc + score, 0);
+        avgScore = (sum / userScores.length).toFixed(1);
       }
 
       return {
@@ -160,23 +168,21 @@ function LeaderboardPage() {
         topCategory,
         averageScore: avgScore
       };
-    }));
+    });
 
     return enhancedUsers;
   };
 
-  // Calculate top performers for the sidebar
-  const calculateTopPerformers = (users) => {
+  // Calculate top performers for the sidebar - OPTIMIZED
+  const calculateTopPerformers = useCallback((users) => {
     // Sort by different metrics
     const sortedByWins = [...users].sort((a, b) => (b.wins || 0) - (a.wins || 0));
     
     // Filter users that have at least 5 debates first
     const eligibleForWinRate = users.filter(user => (user.totalDebates || 0) >= 5);
-    console.log("Eligible users for win rate:", eligibleForWinRate.length); // Debug log
     
     // Then sort by win rate
     const sortedByWinRate = [...eligibleForWinRate].sort((a, b) => (b.winRate || 0) - (a.winRate || 0));
-    console.log("Sorted by win rate:", sortedByWinRate.map(u => u.username)); // Debug log
 
     // Make sure we have valid data for both categories
     const mostWins = sortedByWins.length > 0 ? sortedByWins[0] : null;
@@ -186,20 +192,87 @@ function LeaderboardPage() {
       mostWins,
       highestWinRate
     };
-  };
+  }, []);
 
-  // Filter debaters based on search query
-  const filteredDebaters = searchQuery
-    ? debaters.filter(debater => 
-        debater.username.toLowerCase().includes(searchQuery.toLowerCase()))
-    : debaters;
+  // Filter debaters based on search query - OPTIMIZED
+  const filteredDebaters = useMemo(() => {
+    if (!searchQuery) return debaters;
+    
+    const lowerSearchQuery = searchQuery.toLowerCase();
+    return debaters.filter(debater => 
+      debater.username.toLowerCase().includes(lowerSearchQuery)
+    );
+  }, [debaters, searchQuery]);
 
   if (loading) {
     return (
       <div className="leaderboard-page">
-        <div className="leaderboard-container loading">
+        <div className="leaderboard-header">
           <h1>Leaderboard</h1>
-          <p>Loading leaderboard data...</p>
+          <p className="subtitle">See the top debaters and their performance statistics</p>
+        </div>
+
+        <div className="leaderboard-content">
+          <div className="leaderboard-main">
+            <div className="leaderboard-top-section">
+              <h2>Top Debaters</h2>
+              <p className="rankings-subtitle">Loading rankings...</p>
+              
+              <div className="leaderboard-filters">
+                <div className="filter-dropdown">
+                  <select disabled>
+                    <option>Loading...</option>
+                  </select>
+                </div>
+                <div className="filter-dropdown">
+                  <select disabled>
+                    <option>Loading...</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Skeleton loading for table */}
+            <div className="leaderboard-table-skeleton">
+              {[...Array(8)].map((_, index) => (
+                <div key={index} className="skeleton-row">
+                  <div className="skeleton-cell skeleton-rank"></div>
+                  <div className="skeleton-cell skeleton-name"></div>
+                  <div className="skeleton-cell skeleton-category"></div>
+                  <div className="skeleton-cell skeleton-stats"></div>
+                  <div className="skeleton-cell skeleton-stats"></div>
+                  <div className="skeleton-cell skeleton-stats"></div>
+                  <div className="skeleton-cell skeleton-score"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="leaderboard-sidebar">
+            <div className="find-debater-section">
+              <h2>Find a Debater</h2>
+              <div className="search-input">
+                <input type="text" placeholder="Loading..." disabled />
+              </div>
+            </div>
+
+            <div className="top-performers-section">
+              <h2>Top Performers</h2>
+              <p className="performers-subtitle">Loading top performers...</p>
+              
+              <div className="performers-list">
+                {[...Array(2)].map((_, index) => (
+                  <div key={index} className="performer-card-skeleton">
+                    <div className="skeleton-avatar"></div>
+                    <div className="skeleton-performer-info">
+                      <div className="skeleton-title"></div>
+                      <div className="skeleton-subtitle"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -208,9 +281,22 @@ function LeaderboardPage() {
   if (error) {
     return (
       <div className="leaderboard-page">
-        <div className="leaderboard-container error">
+        <div className="leaderboard-header">
           <h1>Leaderboard</h1>
-          <p className="error-message">{error}</p>
+          <p className="subtitle">See the top debaters and their performance statistics</p>
+        </div>
+        <div className="leaderboard-container error">
+          <div className="error-content">
+            <div className="error-icon">⚠️</div>
+            <h3>Unable to load leaderboard</h3>
+            <p className="error-message">{error}</p>
+            <button 
+              className="retry-button" 
+              onClick={fetchLeaderboardData}
+            >
+              Try Again
+            </button>
+          </div>
         </div>
       </div>
     );
