@@ -4,7 +4,6 @@ import { useAuth } from '../contexts/AuthContext';
 import DefaultAvatar from './DefaultAvatar';
 import Button from './Button';
 import '../styles/Header.css';
-import logo from '../assets/logo.png';
 
 const Header = () => {
   const { user, isAuthenticated, logout } = useAuth();
@@ -38,7 +37,7 @@ const Header = () => {
     <header className="header">
       <div className="header-container">
         <Link to="/" className="logo">
-          <img src={logo} alt="DebateAI Logo" className="logo-image" />
+          <span className="logo-text">Debatably</span>
         </Link>
 
         <nav className="nav-menu">

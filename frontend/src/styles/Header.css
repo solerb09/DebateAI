@@ -25,11 +25,19 @@
   align-items: center;
 }
 
-.logo-image {
-  height: 80px;
-  width: auto;
-  object-fit: contain;
-  margin: -20px 0;
+.logo-text {
+  color: #000000;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  transition: all 0.2s ease;
+  text-decoration: none;
+}
+
+.logo:hover .logo-text {
+  color: #333333;
+  text-decoration: underline;
+  text-decoration-color: #000000;
 }
 
 .logo-text-primary {
